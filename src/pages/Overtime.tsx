@@ -1,10 +1,24 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import api from "../services/api";
-import { Plus, CheckCircle, Trash2, X, Clock } from "lucide-react";
+import {
+  Plus,
+  CheckCircle,
+  Trash2,
+  X,
+  Clock,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  UserCheck,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Ban,
+} from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
 
-interface Overtime {
+interface OvertimeItem {
   id: number;
   employeeId: number;
   employeeName: string;
@@ -19,13 +33,20 @@ interface Employee {
   lastName: string;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export default function Overtime() {
-  const [overtimes, setOvertimes] = useState<Overtime[]>([]);
+  const [overtimes, setOvertimes] = useState<OvertimeItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [showModal, setShowModal] = useState(false);
 
   const role = localStorage.getItem("role") || "Employee";
-  const loggedInEmployeeId = Number(localStorage.getItem("employeeId")) || 1;
+  const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
+  const [selectedEmployee, setSelectedEmployee] =
+    useState<string>(loggedInEmployeeId);
 
   const [formData, setFormData] = useState({
     employeeId: loggedInEmployeeId,
@@ -33,7 +54,6 @@ export default function Overtime() {
     overtimeHours: 2,
   });
 
-  // Modal & Toast States
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -63,66 +83,78 @@ export default function Overtime() {
   );
 
   const loadOvertimes = useCallback(async () => {
+    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+    if (!targetId) return;
+
+    setLoading(true);
     try {
-      const res = await api.get("/Overtimes");
-      // Filter records for regular employees so they only see their own entries
-      if (role === "Employee") {
-        const filtered = res.data.filter(
-          (ot: Overtime) => ot.employeeId === loggedInEmployeeId,
-        );
-        setOvertimes(filtered);
-      } else {
-        setOvertimes(res.data);
-      }
+      const endpoint =
+        role === "Admin" ? "/Overtimes" : `/Overtimes/employee/${targetId}`;
+      const res = await api.get(endpoint);
+      setOvertimes(res.data);
     } catch {
       showToast("Failed to load overtime records.", "error");
+      setOvertimes([]);
+    } finally {
+      setLoading(false);
     }
-  }, [role, loggedInEmployeeId, showToast]);
+  }, [role, selectedEmployee, loggedInEmployeeId, showToast]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    api
-      .get("/Overtimes")
-      .then((res) => {
-        if (isMounted) {
-          if (role === "Employee") {
-            const filtered = res.data.filter(
-              (ot: Overtime) => ot.employeeId === loggedInEmployeeId,
-            );
-            setOvertimes(filtered);
-          } else {
-            setOvertimes(res.data);
-          }
-        }
-      })
-      .catch(() => {
-        if (isMounted) showToast("Failed to load overtime records.", "error");
-      });
-
     if (role === "Admin") {
       api
         .get("/Employees")
         .then((res) => {
-          if (isMounted && res.data.length > 0) {
-            setEmployees(res.data);
-            setFormData((prev) => ({ ...prev, employeeId: res.data[0].id }));
+          setEmployees(res.data);
+          if (res.data.length > 0 && !selectedEmployee) {
+            setSelectedEmployee(res.data[0].id.toString());
           }
         })
         .catch(() => {});
     }
+  }, [role, selectedEmployee]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+
+    const fetchOvertimes = async () => {
+      if (!targetId) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
+      try {
+        const endpoint =
+          role === "Admin" ? "/Overtimes" : `/Overtimes/employee/${targetId}`;
+        const res = await api.get(endpoint);
+        if (isMounted) setOvertimes(res.data);
+      } catch {
+        if (isMounted) {
+          showToast("Failed to load overtime records.", "error");
+          setOvertimes([]);
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchOvertimes();
 
     return () => {
       isMounted = false;
     };
-  }, [role, loggedInEmployeeId, showToast]);
+  }, [role, selectedEmployee, loggedInEmployeeId, showToast]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    const targetId =
+      role === "Admin" ? formData.employeeId : loggedInEmployeeId;
+
     try {
       await api.post("/Overtimes", {
-        employeeId:
-          role === "Admin" ? Number(formData.employeeId) : loggedInEmployeeId,
+        employeeId: Number(targetId),
         overtimeDate: new Date(formData.overtimeDate).toISOString(),
         overtimeHours: Number(formData.overtimeHours),
         status: role === "Admin" ? "Approved" : "In Review",
@@ -131,7 +163,7 @@ export default function Overtime() {
       setFormData({
         employeeId:
           role === "Admin" && employees.length > 0
-            ? employees[0].id
+            ? employees[0].id.toString()
             : loggedInEmployeeId,
         overtimeDate: "",
         overtimeHours: 2,
@@ -140,6 +172,8 @@ export default function Overtime() {
       loadOvertimes();
     } catch {
       showToast("Failed to submit overtime request.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -168,12 +202,58 @@ export default function Overtime() {
     }
   };
 
+  const triggerDeclineModal = (id: number) => {
+    setModalConfig({
+      isOpen: true,
+      title: "Decline Overtime Request",
+      message: "Are you sure you want to decline this overtime request?",
+      confirmText: "Decline",
+      type: "danger",
+      onConfirm: () => executeDecline(id),
+    });
+  };
+
+  const executeDecline = async (id: number) => {
+    try {
+      await api.put(`/Overtimes/${id}/reject`);
+      showToast("Overtime request declined successfully.");
+      loadOvertimes();
+    } catch {
+      showToast("Failed to decline overtime request.", "error");
+    } finally {
+      setModalConfig((prev) => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const triggerCancelModal = (id: number) => {
+    setModalConfig({
+      isOpen: true,
+      title: "Cancel Overtime Request",
+      message: "Are you sure you want to cancel this pending overtime request?",
+      confirmText: "Cancel Request",
+      type: "danger",
+      onConfirm: () => executeCancel(id),
+    });
+  };
+
+  const executeCancel = async (id: number) => {
+    try {
+      await api.put(`/Overtimes/${id}/cancel`);
+      showToast("Overtime request cancelled successfully.");
+      loadOvertimes();
+    } catch {
+      showToast("Failed to cancel overtime request.", "error");
+    } finally {
+      setModalConfig((prev) => ({ ...prev, isOpen: false }));
+    }
+  };
+
   const triggerDeleteModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Delete Overtime Request",
+      title: "Delete Overtime Record",
       message:
-        "Are you sure you want to delete this overtime record? This action cannot be undone.",
+        "Are you sure you want to delete this overtime record permanently?",
       confirmText: "Delete",
       type: "danger",
       onConfirm: () => executeDelete(id),
@@ -192,137 +272,347 @@ export default function Overtime() {
     }
   };
 
+  const totalPages = Math.ceil(overtimes.length / ITEMS_PER_PAGE);
+  const paginatedOvertimes = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return overtimes.slice(start, start + ITEMS_PER_PAGE);
+  }, [overtimes, currentPage]);
+  const hasActionsInOvertime = useMemo(() => {
+    return paginatedOvertimes.some((ot) => {
+      if (role === "Admin") return true;
+      return ot.status === "In Review";
+    });
+  }, [paginatedOvertimes, role]);
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Clock size={22} className="text-blue-600" /> Overtime Management
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <Clock size={20} />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Overtime Management
+            </h1>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mt-1">
             Track extended working hours and review submissions.
           </p>
         </div>
-        <button
-          onClick={() => {
-            setFormData((prev) => ({
-              ...prev,
-              employeeId:
-                role === "Admin" && employees.length > 0
-                  ? employees[0].id
-                  : loggedInEmployeeId,
-            }));
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-xs hover:bg-blue-700 transition-all cursor-pointer w-full sm:w-auto justify-center"
-        >
-          <Plus size={16} />{" "}
-          {role === "Admin" ? "Add Overtime Record" : "File Overtime"}
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          {role === "Admin" && employees.length > 0 && (
+            <div className="relative w-full sm:w-56">
+              <select
+                value={selectedEmployee}
+                disabled={loading}
+                onChange={(e) => {
+                  setLoading(true);
+                  setSelectedEmployee(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white disabled:opacity-50"
+              >
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.lastName}, {emp.firstName}
+                  </option>
+                ))}
+              </select>
+              <UserCheck
+                size={14}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowModal(true)}
+            disabled={loading}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center disabled:opacity-50 active:scale-[0.98]"
+          >
+            <Plus size={16} />{" "}
+            {role === "Admin" ? "Add Overtime Record" : "File Overtime"}
+          </button>
+        </div>
       </div>
 
-      {/* Responsive Table Container */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-150">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 text-xs uppercase tracking-wider">
-                <th className="p-4 font-semibold">Employee</th>
-                <th className="p-4 font-semibold">Date</th>
-                <th className="p-4 font-semibold">Hours</th>
-                <th className="p-4 font-semibold">Status</th>
-                <th className="p-4 font-semibold text-right">Actions</th>
+      {/* Desktop Table View */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <th className="py-3.5 px-5">Employee</th>
+              <th className="py-3.5 px-5">Date</th>
+              <th className="py-3.5 px-5">Hours</th>
+              <th className="py-3.5 px-5">Status</th>
+              {hasActionsInOvertime && (
+                <th className="py-3.5 px-5 text-right">Actions</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={hasActionsInOvertime ? 5 : 4}
+                  className="py-12 text-center text-slate-400"
+                >
+                  <Loader2
+                    size={24}
+                    className="animate-spin text-blue-600 mx-auto mb-2"
+                  />
+                  <p className="text-xs font-semibold text-slate-500">
+                    Loading overtime records...
+                  </p>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {overtimes.length > 0 ? (
-                overtimes.map((ot) => (
-                  <tr
-                    key={ot.id}
-                    className="hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="p-4 font-medium text-slate-900">
-                      {ot.employeeName || "Employee"}
-                    </td>
-                    <td className="p-4 text-slate-600">
-                      {new Date(ot.overtimeDate).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-slate-600">
-                      {ot.overtimeHours} hrs
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
-                          ot.status === "Approved"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}
-                      >
-                        {ot.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {role === "Admin" && ot.status !== "Approved" && (
+            ) : paginatedOvertimes.length > 0 ? (
+              paginatedOvertimes.map((ot) => (
+                <tr
+                  key={ot.id}
+                  className="hover:bg-slate-50/60 transition-colors"
+                >
+                  <td className="py-4 px-5 font-bold text-slate-900">
+                    {ot.employeeName || "Employee"}
+                  </td>
+                  <td className="py-4 px-5 text-slate-600 text-xs font-medium">
+                    {new Date(ot.overtimeDate).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="py-4 px-5 font-mono text-xs font-bold text-slate-700">
+                    {ot.overtimeHours} hrs
+                  </td>
+                  <td className="py-4 px-5">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        ot.status === "Approved"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                          : ot.status === "Declined"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200/60"
+                            : ot.status === "Cancelled"
+                              ? "bg-slate-100 text-slate-600 border border-slate-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                      }`}
+                    >
+                      {ot.status === "Approved" ? (
+                        <CheckCircle2 size={13} />
+                      ) : ot.status === "Declined" ? (
+                        <XCircle size={13} />
+                      ) : ot.status === "Cancelled" ? (
+                        <Ban size={13} />
+                      ) : (
+                        <AlertCircle size={13} />
+                      )}
+                      {ot.status}
+                    </span>
+                  </td>
+                  {hasActionsInOvertime && (
+                    <td className="py-4 px-5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {role === "Admin" && ot.status === "In Review" && (
+                          <>
+                            <button
+                              onClick={() => triggerApproveModal(ot.id)}
+                              className="text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-emerald-200/60"
+                              title="Approve Overtime"
+                            >
+                              <CheckCircle size={14} /> Approve
+                            </button>
+                            <button
+                              onClick={() => triggerDeclineModal(ot.id)}
+                              className="text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-rose-200/60"
+                              title="Decline Overtime"
+                            >
+                              <X size={14} /> Decline
+                            </button>
+                          </>
+                        )}
+
+                        {role !== "Admin" && ot.status === "In Review" && (
                           <button
-                            onClick={() => triggerApproveModal(ot.id)}
-                            className="text-emerald-600 hover:text-emerald-700 p-1.5 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
-                            title="Approve Overtime"
+                            onClick={() => triggerCancelModal(ot.id)}
+                            className="text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-slate-200"
+                            title="Cancel Request"
                           >
-                            <CheckCircle size={18} />
+                            <Ban size={14} /> Cancel
                           </button>
                         )}
-                        {(role === "Admin" || ot.status === "In Review") && (
+
+                        {role === "Admin" && (
                           <button
                             onClick={() => triggerDeleteModal(ot.id)}
                             className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Delete Request"
+                            title="Delete Record"
                           >
                             <Trash2 size={16} />
                           </button>
                         )}
                       </div>
                     </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="p-8 text-center text-slate-500 text-sm"
-                  >
-                    No overtime records found.
-                  </td>
+                  )}
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={hasActionsInOvertime ? 5 : 4}
+                  className="py-12 text-center text-slate-400 text-xs"
+                >
+                  <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                    <AlertCircle size={32} strokeWidth={1.5} />
+                    <p className="text-sm font-semibold text-slate-600">
+                      No overtime records found
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Submitted overtime applications will appear here.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* File / Add Overtime Modal */}
+      {/* Mobile Card Grid View */}
+      <div className="grid grid-cols-1 gap-3 md:hidden">
+        {loading ? (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
+            <Loader2 size={24} className="animate-spin text-blue-600 mx-auto" />
+            <p className="text-xs font-semibold text-slate-500">
+              Loading cards...
+            </p>
+          </div>
+        ) : paginatedOvertimes.length > 0 ? (
+          paginatedOvertimes.map((ot) => (
+            <div
+              key={ot.id}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3"
+            >
+              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {ot.employeeName || "Employee"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Date: {new Date(ot.overtimeDate).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {role === "Admin" && ot.status === "In Review" && (
+                    <>
+                      <button
+                        onClick={() => triggerApproveModal(ot.id)}
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                      >
+                        <CheckCircle size={16} />
+                      </button>
+                      <button
+                        onClick={() => triggerDeclineModal(ot.id)}
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
+                      >
+                        <X size={16} />
+                      </button>
+                    </>
+                  )}
+                  {role !== "Admin" && ot.status === "In Review" && (
+                    <button
+                      onClick={() => triggerCancelModal(ot.id)}
+                      className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg"
+                      title="Cancel Request"
+                    >
+                      <Ban size={16} />
+                    </button>
+                  )}
+                  {role === "Admin" && (
+                    <button
+                      onClick={() => triggerDeleteModal(ot.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-mono font-bold text-slate-700">
+                  {ot.overtimeHours} Hours
+                </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
+                    ot.status === "Approved"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : ot.status === "Declined"
+                        ? "bg-rose-50 text-rose-700 border border-rose-200"
+                        : ot.status === "Cancelled"
+                          ? "bg-slate-100 text-slate-600 border border-slate-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}
+                >
+                  {ot.status}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
+            No overtime records found.
+          </div>
+        )}
+      </div>
+
+      {/* Pagination Controls */}
+      {!loading && totalPages > 1 && (
+        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* File Overtime Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-md w-full space-y-5 border border-slate-200 shadow-xl">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2 className="text-base font-bold text-slate-900">
                 {role === "Admin"
                   ? "Add Overtime Record"
                   : "File Overtime Request"}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="space-y-4 text-xs">
               {role === "Admin" && employees.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     Select Employee
                   </label>
                   <select
@@ -330,15 +620,16 @@ export default function Overtime() {
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        employeeId: Number(e.target.value),
+                        employeeId: e.target.value,
                       })
                     }
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold"
                     required
                   >
                     {employees.map((emp) => (
                       <option key={emp.id} value={emp.id}>
-                        {emp.lastName}, {emp.firstName} (ID: {emp.id})
+                        {emp.lastName}, {emp.firstName}
                       </option>
                     ))}
                   </select>
@@ -346,7 +637,7 @@ export default function Overtime() {
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                   Overtime Date
                 </label>
                 <input
@@ -355,13 +646,14 @@ export default function Overtime() {
                   onChange={(e) =>
                     setFormData({ ...formData, overtimeDate: e.target.value })
                   }
-                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  disabled={isSubmitting}
+                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                   Overtime Hours
                 </label>
                 <input
@@ -373,7 +665,8 @@ export default function Overtime() {
                       overtimeHours: Number(e.target.value),
                     })
                   }
-                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  disabled={isSubmitting}
+                  className="w-full border border-slate-300 p-2.5 rounded-xl font-mono font-bold"
                   min={1}
                   max={12}
                   required
@@ -384,14 +677,19 @@ export default function Overtime() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-xs"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold flex items-center gap-2"
                 >
+                  {isSubmitting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : null}
                   {role === "Admin" ? "Add Record" : "Submit Request"}
                 </button>
               </div>
@@ -400,7 +698,6 @@ export default function Overtime() {
         </div>
       )}
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={modalConfig.isOpen}
         title={modalConfig.title}
@@ -411,7 +708,6 @@ export default function Overtime() {
         onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
       />
 
-      {/* Toast Notification */}
       <Toast
         message={toast?.text || null}
         type={toast?.type}

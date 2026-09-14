@@ -1,17 +1,18 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import {
   ArrowLeft,
-  Download,
   Calculator,
-  FileText,
   SlidersHorizontal,
   RefreshCw,
+  Loader2,
+  UserCheck,
+  CalendarDays,
 } from "lucide-react";
-import { toPng } from "html-to-image";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
+import PaySlipModal, { type PaySlipData } from "../components/PaySlipModal";
 
 interface Employee {
   id: number;
@@ -48,15 +49,18 @@ export default function PayrollGenerator() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
   const [payPeriodType, setPayPeriodType] = useState<"15th" | "30th">("15th");
-  const [payrollData, setPayrollData] = useState<PayrollResult | null>(null);
+  const [payrollData, setPayrollData] = useState<PaySlipData | null>(null);
+
+  // Loading states
   const [loadingParams, setLoadingParams] = useState<boolean>(false);
+  const [isComputing, setIsComputing] = useState<boolean>(false);
+
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [toast, setToast] = useState<{
     text: string;
     type: "success" | "error";
   } | null>(null);
 
-  const payslipRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const [params, setParams] = useState({
@@ -71,10 +75,13 @@ export default function PayrollGenerator() {
     cashAdvanceDeduction: 0,
   });
 
-  const showToast = (text: string, type: "success" | "error" = "success") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 5000);
-  };
+  const showToast = useCallback(
+    (text: string, type: "success" | "error" = "success") => {
+      setToast({ text, type });
+      setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
   useEffect(() => {
     api
@@ -88,7 +95,7 @@ export default function PayrollGenerator() {
       .catch(() => {
         showToast("Failed to load employees list.", "error");
       });
-  }, []);
+  }, [showToast]);
 
   const fetchCalculatedParams = useCallback(async () => {
     if (!selectedEmployee) return;
@@ -107,12 +114,68 @@ export default function PayrollGenerator() {
     } finally {
       setLoadingParams(false);
     }
-  }, [selectedEmployee, payPeriodType]);
+  }, [selectedEmployee, payPeriodType, showToast]);
+
+  // Handle Selection Changes: Resets generated payslip and refreshes params
+  const handleEmployeeChange = (id: number) => {
+    setSelectedEmployee(id);
+    setPayrollData(null);
+  };
+
+  const handlePayPeriodChange = (type: "15th" | "30th") => {
+    setPayPeriodType(type);
+    setPayrollData(null);
+  };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchCalculatedParams();
-  }, [fetchCalculatedParams]);
+    if (!selectedEmployee) return;
+
+    let isMounted = true;
+
+    const loadInitialData = async () => {
+      try {
+        const [paramsRes, historyRes] = await Promise.all([
+          api.get(`/Payroll/calculate-params/${selectedEmployee}`, {
+            params: { payPeriod: payPeriodType },
+          }),
+          api
+            .get(`/Payroll/history/${selectedEmployee}`)
+            .catch(() => ({ data: [] })),
+        ]);
+
+        if (!isMounted) return;
+
+        setParams(paramsRes.data);
+
+        const periodName =
+          payPeriodType === "15th"
+            ? "15th Pay Period"
+            : "End of Month Pay Period";
+        const currentMonth = new Date().getMonth();
+
+        const existing = historyRes.data.find((p: PaySlipHistoryItem) => {
+          const pDate = new Date(p.payPeriodEnd);
+          return (
+            p.payPeriod === periodName && pDate.getMonth() === currentMonth
+          );
+        });
+
+        if (existing) {
+          showToast("Existing computed payroll loaded for this period.");
+        }
+      } catch {
+        if (isMounted) {
+          showToast("Failed to auto-fetch system parameters.", "error");
+        }
+      }
+    };
+
+    loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedEmployee, payPeriodType, showToast]);
 
   const handleInputChange = (field: keyof typeof params, value: number) => {
     setParams((prev) => ({ ...prev, [field]: Math.max(0, value) }));
@@ -124,6 +187,9 @@ export default function PayrollGenerator() {
       return;
     }
 
+    setShowConfirmModal(false);
+    setIsComputing(true);
+
     try {
       const res = await api.get(`/Payroll/compute/${selectedEmployee}`, {
         params: {
@@ -131,7 +197,32 @@ export default function PayrollGenerator() {
           payPeriod: payPeriodType,
         },
       });
-      setPayrollData(res.data);
+
+      const data: PayrollResult = res.data;
+
+      // Map API Response to PaySlipData format for PaySlipModal
+      const formattedPaySlip: PaySlipData = {
+        id: Date.now(),
+        payPeriod: payPeriodType === "15th" ? "15th Cutoff" : "30th Cutoff",
+        payPeriodEnd: new Date().toISOString(),
+        employeeName: data.employeeName,
+        dailySalary: data.dailySalary,
+        basicPay: data.basicPay,
+        overtimePay: data.overtimePay,
+        regularHolidayPay: data.regularHolidayPay,
+        specialHolidayPay: data.specialHolidayPay,
+        leavePay: data.leavePay,
+        grossEarnings: data.grossEarnings,
+        lateDeduction: data.lateDeduction,
+        undertimeDeduction: data.undertimeDeduction,
+        absentDeduction: data.absentDeduction,
+        cashAdvanceDeduction: data.cashAdvanceDeduction,
+        governmentContributions: data.governmentContributions,
+        totalDeductions: data.totalDeductions,
+        netReceivable: data.netReceivable,
+      };
+
+      setPayrollData(formattedPaySlip);
       showToast("Payroll successfully computed!");
     } catch (err: unknown) {
       const errorMsg =
@@ -139,76 +230,32 @@ export default function PayrollGenerator() {
         "Failed to compute payroll.";
       showToast(errorMsg, "error");
     } finally {
-      setShowConfirmModal(false);
-    }
-  };
-
-  const checkExistingPayslip = useCallback(async () => {
-    if (!selectedEmployee) return;
-    try {
-      const res = await api.get(`/Payroll/history/${selectedEmployee}`);
-      const periodName =
-        payPeriodType === "15th"
-          ? "15th Pay Period"
-          : "End of Month Pay Period";
-      const currentMonth = new Date().getMonth();
-
-      const existing = res.data.find((p: PaySlipHistoryItem) => {
-        const pDate = new Date(p.payPeriodEnd);
-        return p.payPeriod === periodName && pDate.getMonth() === currentMonth;
-      });
-
-      if (existing) {
-        showToast("Existing computed payroll loaded for this period.");
-      }
-    } catch {
-      // No history found
-    }
-  }, [selectedEmployee, payPeriodType]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    checkExistingPayslip();
-  }, [checkExistingPayslip]);
-
-  // Filename formatted strictly as MMDD-15th.png or MMDD-30th.png
-  const handleDownloadImage = async () => {
-    if (!payslipRef.current) return;
-    try {
-      const dataUrl = await toPng(payslipRef.current, { cacheBust: true });
-      const currentDate = new Date();
-      const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-      const day = String(currentDate.getDate()).padStart(2, "0");
-      const filename = `${month}${day}-${payPeriodType}.png`;
-
-      const link = document.createElement("a");
-      link.download = filename;
-      link.href = dataUrl;
-      link.click();
-      showToast("Payslip image downloaded successfully.");
-    } catch {
-      showToast("Failed to download payslip image.", "error");
+      setIsComputing(false);
     }
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/dashboard")}
-            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
-            title="Dashboard"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Return to Dashboard"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Calculator size={22} className="text-blue-600" /> Payroll
-              Generator
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                <Calculator size={20} />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">
+                Payroll Generator
+              </h1>
+            </div>
+            <p className="text-xs font-medium text-slate-500 mt-1">
               Compute employee salaries, allowances, and net receivables.
             </p>
           </div>
@@ -216,16 +263,17 @@ export default function PayrollGenerator() {
       </div>
 
       {/* Control Inputs Section */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs space-y-6">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Select Employee
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1.5">
+              <UserCheck size={14} className="text-slate-400" /> Select Employee
             </label>
             <select
               value={selectedEmployee ?? ""}
-              onChange={(e) => setSelectedEmployee(Number(e.target.value))}
-              className="w-full border border-slate-300 bg-white p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => handleEmployeeChange(Number(e.target.value))}
+              disabled={isComputing}
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 cursor-pointer"
             >
               {employees.length === 0 && (
                 <option value="">No employees found</option>
@@ -237,16 +285,19 @@ export default function PayrollGenerator() {
               ))}
             </select>
           </div>
+
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Pay Period Cutoff
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1.5">
+              <CalendarDays size={14} className="text-slate-400" /> Pay Period
+              Cutoff
             </label>
             <select
               value={payPeriodType}
               onChange={(e) =>
-                setPayPeriodType(e.target.value as "15th" | "30th")
+                handlePayPeriodChange(e.target.value as "15th" | "30th")
               }
-              className="w-full border border-slate-300 bg-white p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              disabled={isComputing}
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 cursor-pointer"
             >
               <option value="15th">15th Pay Period (29th/30th - 13th)</option>
               <option value="30th">
@@ -257,26 +308,27 @@ export default function PayrollGenerator() {
         </div>
 
         {/* Manual Input Fields Grid */}
-        <div>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <SlidersHorizontal size={14} /> Computation Parameters
             </h3>
             <button
               onClick={fetchCalculatedParams}
-              className="text-xs text-blue-600 font-medium flex items-center gap-1 hover:underline cursor-pointer"
+              disabled={loadingParams || isComputing}
+              className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 hover:underline cursor-pointer disabled:opacity-50"
             >
               <RefreshCw
-                size={12}
-                className={loadingParams ? "animate-spin" : ""}
-              />{" "}
+                size={13}
+                className={loadingParams ? "animate-spin text-blue-600" : ""}
+              />
               Recalculate System Parameters
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Days Worked
               </label>
               <input
@@ -289,12 +341,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Overtime (hrs)
               </label>
               <input
@@ -307,12 +360,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Reg. Holiday (hrs)
               </label>
               <input
@@ -325,12 +379,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Special Holiday (hrs)
               </label>
               <input
@@ -343,12 +398,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Approved Leave (hrs)
               </label>
               <input
@@ -361,12 +417,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Late (hrs)
               </label>
               <input
@@ -379,12 +436,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Undertime (hrs)
               </label>
               <input
@@ -397,12 +455,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Absent (Days)
               </label>
               <input
@@ -415,12 +474,13 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
 
             <div className="col-span-2 sm:col-span-1">
-              <label className="block text-slate-600 font-medium mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Cash Advance (PHP)
               </label>
               <input
@@ -433,7 +493,8 @@ export default function PayrollGenerator() {
                     parseFloat(e.target.value) || 0,
                   )
                 }
-                className="w-full bg-white border border-slate-300 p-2 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                disabled={isComputing}
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
               />
             </div>
           </div>
@@ -441,139 +502,29 @@ export default function PayrollGenerator() {
 
         <button
           onClick={() => setShowConfirmModal(true)}
-          className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-all cursor-pointer shadow-xs flex items-center justify-center gap-2"
+          disabled={isComputing || !selectedEmployee}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Calculator size={16} /> Compute Payroll
+          {isComputing ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Computing
+              Payroll...
+            </>
+          ) : (
+            <>
+              <Calculator size={16} /> Compute Payroll
+            </>
+          )}
         </button>
       </div>
 
-      {/* Payslip Preview */}
-      {payrollData && (
-        <div className="space-y-4">
-          <div
-            ref={payslipRef}
-            className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6"
-          >
-            <div className="flex justify-between items-start border-b border-slate-200 pb-5">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <FileText size={20} className="text-blue-600" /> Firefly
-                  Crafts PH
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Official Pay Slip ({payPeriodType} Cutoff)
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-slate-900">
-                  {payrollData.employeeName}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Daily Salary: PHP {payrollData.dailySalary.toFixed(2)}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
-              <div className="space-y-3">
-                <h3 className="font-semibold text-slate-800 text-xs uppercase tracking-wider">
-                  Earnings
-                </h3>
-                <div className="space-y-2 text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="flex justify-between">
-                    <span>Basic Pay:</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.basicPay.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Overtime Pay (+25%):</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.overtimePay.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Regular Holiday Pay (200%):</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.regularHolidayPay.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Special Holiday Pay (130%):</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.specialHolidayPay.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold border-t border-slate-200 pt-2 text-slate-900">
-                    <span>Gross Earnings:</span>
-                    <span className="text-blue-600">
-                      PHP {payrollData.grossEarnings.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold text-slate-800 text-xs uppercase tracking-wider">
-                  Deductions
-                </h3>
-                <div className="space-y-2 text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="flex justify-between">
-                    <span>Late / Undertime:</span>
-                    <span className="font-medium text-slate-900">
-                      PHP{" "}
-                      {(
-                        payrollData.lateDeduction +
-                        payrollData.undertimeDeduction
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Absent Deduction:</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.absentDeduction.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cash Advance:</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.cashAdvanceDeduction.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Government Benefits:</span>
-                    <span className="font-medium text-slate-900">
-                      PHP {payrollData.governmentContributions.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold border-t border-slate-200 pt-2 text-slate-900">
-                    <span>Total Deductions:</span>
-                    <span className="text-rose-600">
-                      PHP {payrollData.totalDeductions.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 p-4 rounded-xl flex justify-between items-center border border-blue-100">
-              <span className="font-bold text-blue-900 text-sm">
-                Net Receivable:
-              </span>
-              <span className="text-xl font-bold text-blue-600">
-                PHP {payrollData.netReceivable.toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleDownloadImage}
-            className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-3.5 rounded-xl font-medium text-sm shadow-xs hover:bg-slate-800 transition-all cursor-pointer"
-          >
-            <Download size={18} /> Download Payslip Image
-          </button>
-        </div>
-      )}
+      {/* Reusable PaySlip Modal */}
+      <PaySlipModal
+        isOpen={payrollData !== null}
+        paySlip={payrollData}
+        onClose={() => setPayrollData(null)}
+        onShowToast={showToast}
+      />
 
       {/* Confirm Modal */}
       <ConfirmModal

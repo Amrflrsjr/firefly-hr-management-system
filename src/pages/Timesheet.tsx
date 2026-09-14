@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Clock,
   PlusCircle,
@@ -6,6 +6,17 @@ import {
   X,
   ShieldCheck,
   Trash2,
+  LogIn,
+  LogOut,
+  AlertCircle,
+  CheckCircle2,
+  CalendarDays,
+  UserCheck,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  XCircle,
 } from "lucide-react";
 import api from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
@@ -35,6 +46,8 @@ interface Employee {
   lastName: string;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export default function Timesheet() {
   const [activeTab, setActiveTab] = useState<"records" | "requests">("records");
   const [records, setRecords] = useState<TimeRecordItem[]>([]);
@@ -43,6 +56,14 @@ export default function Timesheet() {
   const [showManualModal, setShowManualModal] = useState(false);
   const [manualDate, setManualDate] = useState("");
   const [manualType, setManualType] = useState("IN");
+
+  // Loading States
+  const [loadingData, setLoadingData] = useState<boolean>(true);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  // Pagination States
+  const [recordsPage, setRecordsPage] = useState<number>(1);
+  const [requestsPage, setRequestsPage] = useState<number>(1);
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
@@ -96,6 +117,7 @@ export default function Timesheet() {
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
     if (!targetId) return;
 
+    setLoadingData(true);
     try {
       const res = await api.get(`/TimeRecords/employee/${targetId}`);
       setRecords(res.data);
@@ -103,41 +125,60 @@ export default function Timesheet() {
       setRecords([]);
     }
 
-    if (role === "Admin") {
-      try {
-        const reqRes = await api.get("/AttendanceRequests");
-        setRequests(reqRes.data);
-      } catch {
-        setRequests([]);
-      }
+    try {
+      const reqEndpoint =
+        role === "Admin"
+          ? "/AttendanceRequests"
+          : `/AttendanceRequests/employee/${targetId}`;
+      const reqRes = await api.get(reqEndpoint);
+      setRequests(reqRes.data);
+    } catch {
+      setRequests([]);
     }
+    setLoadingData(false);
   }, [selectedEmployee, loggedInEmployeeId, role]);
 
   useEffect(() => {
     let isMounted = true;
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
 
-    if (targetId) {
-      api
-        .get(`/TimeRecords/employee/${targetId}`)
-        .then((res) => {
-          if (isMounted) setRecords(res.data);
-        })
-        .catch(() => {
-          if (isMounted) setRecords([]);
-        });
-    }
+    const fetchData = async () => {
+      if (!targetId) {
+        if (isMounted) {
+          setRecords([]);
+          setRequests([]);
+        }
+        return;
+      }
 
-    if (role === "Admin") {
-      api
-        .get("/AttendanceRequests")
-        .then((res) => {
-          if (isMounted) setRequests(res.data);
-        })
-        .catch(() => {
-          if (isMounted) setRequests([]);
-        });
-    }
+      try {
+        const reqEndpoint =
+          role === "Admin"
+            ? "/AttendanceRequests"
+            : `/AttendanceRequests/employee/${targetId}`;
+
+        const [recordsRes, requestsRes] = await Promise.all([
+          api.get(`/TimeRecords/employee/${targetId}`),
+          api.get(reqEndpoint),
+        ]);
+
+        if (!isMounted) return;
+
+        setRecords(recordsRes.data);
+        setRequests(requestsRes.data);
+      } catch {
+        if (isMounted) {
+          setRecords([]);
+          setRequests([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingData(false);
+        }
+      }
+    };
+
+    fetchData();
 
     return () => {
       isMounted = false;
@@ -244,218 +285,507 @@ export default function Timesheet() {
     }
   };
 
+  const triggerDeclineModal = (id: number) => {
+    setModalConfig({
+      isOpen: true,
+      title: "Decline Attendance Request",
+      message:
+        "Are you sure you want to decline this missed attendance request?",
+      confirmText: "Decline",
+      type: "danger",
+      onConfirm: () => executeDecline(id),
+    });
+  };
+
+  const executeDecline = async (id: number) => {
+    try {
+      await api.put(`/AttendanceRequests/${id}/reject`);
+      showToast("Attendance request declined successfully.");
+      loadData();
+    } catch {
+      showToast("Failed to decline request.", "error");
+    } finally {
+      setModalConfig((prev) => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  const handleExportExcel = async () => {
+    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+    if (!targetId) return;
+
+    setIsExporting(true);
+    try {
+      const response = await api.get(
+        `/TimeRecords/export/employee/${targetId}`,
+        {
+          responseType: "blob",
+        },
+      );
+
+      const activeEmp = employees.find((e) => e.id.toString() === targetId);
+      const empName = activeEmp
+        ? `${activeEmp.lastName}_${activeEmp.firstName}`
+        : "Employee";
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute(
+        "download",
+        `Timesheet_${empName}_${new Date().toISOString().split("T")[0]}.xlsx`,
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showToast("Timesheet exported to .xlsx successfully!");
+    } catch {
+      showToast("Failed to export timesheet.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const pendingCount = requests.filter((r) => r.status === "Pending").length;
+
+  // Pagination Logic
+  const totalRecordsPages = Math.ceil(records.length / ITEMS_PER_PAGE);
+  const paginatedRecords = useMemo(() => {
+    const start = (recordsPage - 1) * ITEMS_PER_PAGE;
+    return records.slice(start, start + ITEMS_PER_PAGE);
+  }, [records, recordsPage]);
+
+  const totalRequestsPages = Math.ceil(requests.length / ITEMS_PER_PAGE);
+  const paginatedRequests = useMemo(() => {
+    const start = (requestsPage - 1) * ITEMS_PER_PAGE;
+    return requests.slice(start, start + ITEMS_PER_PAGE);
+  }, [requests, requestsPage]);
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Clock size={22} className="text-blue-600" /> Attendance Timesheet
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Review recorded logs or file manual corrections for missed
-            attendance.
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <Clock size={20} />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Attendance Timesheet
+            </h1>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mt-1">
+            Review recorded work logs or file manual corrections for missed
+            shifts.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          {role === "Admin" && employees.length > 0 && (
+            <div className="relative w-full sm:w-56">
+              <select
+                value={selectedEmployee}
+                disabled={loadingData || isExporting}
+                onChange={(e) => {
+                  setLoadingData(true);
+                  setSelectedEmployee(e.target.value);
+                  setRecordsPage(1);
+                  setRequestsPage(1);
+                }}
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white disabled:opacity-50"
+              >
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.lastName}, {emp.firstName}
+                  </option>
+                ))}
+              </select>
+              <UserCheck
+                size={14}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+            </div>
+          )}
+
           <button
-            onClick={() => setShowManualModal(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-xs hover:bg-blue-700 transition-all cursor-pointer justify-center w-full sm:w-auto"
+            onClick={handleExportExcel}
+            disabled={isExporting || loadingData}
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
           >
-            <PlusCircle size={16} />
-            {role === "Admin" ? "Input" : "File Missed Attendance"}
+            {isExporting ? (
+              <>
+                <Loader2 size={15} className="animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download size={15} />
+                Export Excel
+              </>
+            )}
           </button>
 
-          {role === "Admin" && employees.length > 0 && (
-            <select
-              value={selectedEmployee}
-              onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="border border-slate-300 bg-white p-2 rounded-lg text-sm w-full sm:w-48 focus:outline-hidden"
-            >
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.lastName}, {emp.firstName}
-                </option>
-              ))}
-            </select>
-          )}
+          <button
+            onClick={() => setShowManualModal(true)}
+            disabled={loadingData}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
+          >
+            <PlusCircle size={15} />
+            {role === "Admin" ? "Add Record" : "File Missed Attendance"}
+          </button>
         </div>
       </div>
 
-      {/* Admin Tabs for Requests vs Records */}
-      {role === "Admin" && (
-        <div className="flex border-b border-slate-200 gap-6">
-          <button
-            onClick={() => setActiveTab("records")}
-            className={`pb-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
-              activeTab === "records"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            Recorded Logs
-          </button>
-          <button
-            onClick={() => setActiveTab("requests")}
-            className={`pb-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "requests"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            Pending Requests{" "}
-            {requests.filter((r) => r.status === "Pending").length > 0 && (
-              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold">
-                {requests.filter((r) => r.status === "Pending").length}
-              </span>
-            )}
-          </button>
-        </div>
-      )}
+      {/* Tabs for Requests vs Records */}
+      <div className="flex border-b border-slate-200 gap-8 px-2">
+        <button
+          onClick={() => {
+            setActiveTab("records");
+            setRecordsPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "records"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          Recorded Logs
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("requests");
+            setRequestsPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === "requests"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          {role === "Admin" ? "Pending Requests" : "My Requests"}
+          {pendingCount > 0 && (
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* Timesheet Data Table */}
       {activeTab === "records" ? (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-125">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 text-xs uppercase tracking-wider">
-                  <th className="p-4 font-semibold">Type</th>
-                  <th className="p-4 font-semibold">Date Logged</th>
-                  <th className="p-4 font-semibold text-right">Timestamp</th>
-                  {role === "Admin" && (
-                    <th className="p-4 font-semibold text-right">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {records.length > 0 ? (
-                  records.map((record) => (
-                    <tr
-                      key={record.id}
-                      className="hover:bg-slate-50/50 transition-colors"
-                    >
-                      <td className="p-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-md text-xs font-semibold ${record.type === "IN" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}
-                        >
-                          Time {record.type}
-                        </span>
-                      </td>
-                      <td className="p-4 text-slate-600">
-                        {new Date(
-                          record.dateCreated || record.date,
-                        ).toLocaleDateString()}
-                      </td>
-                      <td className="p-4 text-right font-medium text-slate-900">
-                        {new Date(
-                          record.dateCreated || record.date,
-                        ).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      {role === "Admin" && (
-                        <td className="p-4 text-right">
-                          <button
-                            onClick={() => triggerDeleteRecordModal(record.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-end"
-                            title="Delete Record"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={role === "Admin" ? 4 : 3}
-                      className="p-8 text-center text-slate-500 text-sm"
-                    >
-                      No attendance logs found for this employee.
-                    </td>
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-125">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                    <th className="py-3.5 px-5">Log Type</th>
+                    <th className="py-3.5 px-5">Date Logged</th>
+                    <th className="py-3.5 px-5 text-right">Timestamp</th>
+                    {role === "Admin" && (
+                      <th className="py-3.5 px-5 text-right">Actions</th>
+                    )}
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-150">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 text-xs uppercase tracking-wider">
-                  <th className="p-4 font-semibold">Employee</th>
-                  <th className="p-4 font-semibold">Type</th>
-                  <th className="p-4 font-semibold">Target Date</th>
-                  <th className="p-4 font-semibold">Status</th>
-                  <th className="p-4 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {requests.length > 0 ? (
-                  requests.map((req) => (
-                    <tr
-                      key={req.id}
-                      className="hover:bg-slate-50/50 transition-colors"
-                    >
-                      <td className="p-4 font-medium text-slate-900">
-                        {req.employee
-                          ? `${req.employee.lastName}, ${req.employee.firstName}`
-                          : `ID: ${req.employeeId}`}
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {loadingData ? (
+                    <tr>
+                      <td
+                        colSpan={role === "Admin" ? 4 : 3}
+                        className="py-12 text-center text-slate-400"
+                      >
+                        <Loader2
+                          size={24}
+                          className="animate-spin text-blue-600 mx-auto mb-2"
+                        />
+                        <p className="text-xs font-semibold text-slate-500">
+                          Loading time records...
+                        </p>
                       </td>
-                      <td className="p-4 font-semibold text-slate-700">
-                        Time {req.type}
-                      </td>
-                      <td className="p-4 text-slate-600">
-                        {new Date(req.targetDate).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-md text-xs font-semibold ${req.status === "Approved" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}
-                        >
-                          {req.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {req.status === "Pending" && (
-                            <button
-                              onClick={() => triggerApproveModal(req.id)}
-                              className="text-emerald-600 hover:text-emerald-700 p-1.5 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold"
-                              title="Approve Request"
-                            >
-                              <CheckCircle size={16} /> Approve
-                            </button>
-                          )}
-                          <button
-                            onClick={() => triggerDeleteRequestModal(req.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Delete Request"
+                    </tr>
+                  ) : paginatedRecords.length > 0 ? (
+                    paginatedRecords.map((record) => (
+                      <tr
+                        key={record.id}
+                        className="hover:bg-slate-50/60 transition-colors group"
+                      >
+                        <td className="py-4 px-5">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                              record.type === "IN"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                            }`}
                           >
-                            <Trash2 size={16} />
-                          </button>
+                            {record.type === "IN" ? (
+                              <LogIn size={13} className="text-emerald-600" />
+                            ) : (
+                              <LogOut size={13} className="text-amber-600" />
+                            )}
+                            Time {record.type}
+                          </span>
+                        </td>
+                        <td className="py-4 px-5 text-slate-700 font-medium">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays
+                              size={14}
+                              className="text-slate-400"
+                            />
+                            {new Date(
+                              record.dateCreated || record.date,
+                            ).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </div>
+                        </td>
+                        <td className="py-4 px-5 text-right font-mono text-xs font-bold text-slate-900">
+                          {new Date(
+                            record.dateCreated || record.date,
+                          ).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </td>
+                        {role === "Admin" && (
+                          <td className="py-4 px-5 text-right">
+                            <button
+                              onClick={() =>
+                                triggerDeleteRecordModal(record.id)
+                              }
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer inline-flex items-center justify-end"
+                              title="Delete Record"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={role === "Admin" ? 4 : 3}
+                        className="py-12 px-4 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                          <Clock size={32} strokeWidth={1.5} />
+                          <p className="text-sm font-semibold text-slate-600">
+                            No attendance records found
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            Time IN and Time OUT logs will appear here.
+                          </p>
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="p-8 text-center text-slate-500 text-sm"
-                    >
-                      No pending attendance correction requests found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* Records Pagination Controls */}
+          {!loadingData && totalRecordsPages > 1 && (
+            <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>
+                Page {recordsPage} of {totalRecordsPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
+                  disabled={recordsPage === 1}
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() =>
+                    setRecordsPage((p) => Math.min(totalRecordsPages, p + 1))
+                  }
+                  disabled={recordsPage === totalRecordsPages}
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-150">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                    {role === "Admin" && (
+                      <th className="py-3.5 px-5">Employee</th>
+                    )}
+                    <th className="py-3.5 px-5">Log Type</th>
+                    <th className="py-3.5 px-5">Target Date</th>
+                    <th className="py-3.5 px-5">Status</th>
+                    <th className="py-3.5 px-5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {loadingData ? (
+                    <tr>
+                      <td
+                        colSpan={role === "Admin" ? 5 : 4}
+                        className="py-12 text-center text-slate-400"
+                      >
+                        <Loader2
+                          size={24}
+                          className="animate-spin text-blue-600 mx-auto mb-2"
+                        />
+                        <p className="text-xs font-semibold text-slate-500">
+                          Loading attendance requests...
+                        </p>
+                      </td>
+                    </tr>
+                  ) : paginatedRequests.length > 0 ? (
+                    paginatedRequests.map((req) => (
+                      <tr
+                        key={req.id}
+                        className="hover:bg-slate-50/60 transition-colors"
+                      >
+                        {role === "Admin" && (
+                          <td className="py-4 px-5 font-semibold text-slate-900">
+                            {req.employee
+                              ? `${req.employee.lastName}, ${req.employee.firstName}`
+                              : `ID: ${req.employeeId}`}
+                          </td>
+                        )}
+                        <td className="py-4 px-5">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                              req.type === "IN"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                            }`}
+                          >
+                            {req.type === "IN" ? (
+                              <LogIn size={13} className="text-emerald-600" />
+                            ) : (
+                              <LogOut size={13} className="text-amber-600" />
+                            )}
+                            Time {req.type}
+                          </span>
+                        </td>
+                        <td className="py-4 px-5 text-slate-700 font-medium">
+                          {new Date(req.targetDate).toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            },
+                          )}
+                        </td>
+                        <td className="py-4 px-5">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                              req.status === "Approved"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                : req.status === "Declined"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200/60"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                            }`}
+                          >
+                            {req.status === "Approved" ? (
+                              <CheckCircle2 size={13} />
+                            ) : req.status === "Declined" ? (
+                              <XCircle size={13} />
+                            ) : (
+                              <AlertCircle size={13} />
+                            )}
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {role === "Admin" && req.status === "Pending" && (
+                              <>
+                                <button
+                                  onClick={() => triggerApproveModal(req.id)}
+                                  className="text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-emerald-200/60"
+                                  title="Approve Request"
+                                >
+                                  <CheckCircle size={14} /> Approve
+                                </button>
+                                <button
+                                  onClick={() => triggerDeclineModal(req.id)}
+                                  className="text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-rose-200/60"
+                                  title="Decline Request"
+                                >
+                                  <X size={14} /> Decline
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => triggerDeleteRequestModal(req.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete Request"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={role === "Admin" ? 5 : 4}
+                        className="py-12 px-4 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                          <AlertCircle size={32} strokeWidth={1.5} />
+                          <p className="text-sm font-semibold text-slate-600">
+                            No attendance requests found
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            Attendance correction requests will appear here.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Requests Pagination Controls */}
+          {!loadingData && totalRequestsPages > 1 && (
+            <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>
+                Page {requestsPage} of {totalRequestsPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setRequestsPage((p) => Math.max(1, p - 1))}
+                  disabled={requestsPage === 1}
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() =>
+                    setRequestsPage((p) => Math.min(totalRequestsPages, p + 1))
+                  }
+                  disabled={requestsPage === totalRequestsPages}
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -480,20 +810,20 @@ export default function Timesheet() {
 
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                   Log Type
                 </label>
                 <select
                   value={manualType}
                   onChange={(e) => setManualType(e.target.value)}
-                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="IN">Time IN</option>
                   <option value="OUT">Time OUT</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                   Target Date & Time
                 </label>
                 <input
@@ -501,20 +831,20 @@ export default function Timesheet() {
                   value={manualDate}
                   onChange={(e) => setManualDate(e.target.value)}
                   required
-                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowManualModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-xs"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-sm active:scale-[0.98]"
                 >
                   Submit
                 </button>

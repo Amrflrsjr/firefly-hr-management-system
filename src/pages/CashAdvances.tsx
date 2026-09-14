@@ -1,202 +1,531 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import api from "../services/api";
-import { Plus, Trash2, DollarSign, X } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  DollarSign,
+  X,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import ConfirmModal from "../components/ConfirmModal";
+import Toast from "../components/Toast";
+
+interface Employee {
+  id: number;
+  firstName: string;
+  lastName: string;
+}
 
 interface CashAdvance {
   id: number;
-  employeeName: string;
-  amount: number;
-  balance: number;
-  requestDate: string;
+  employeeId: number;
+  employee?: Employee;
+  cashAdvanceAmount: number;
+  remainingBalance?: number;
+  deductionType: string;
+  date: string;
   status: string;
 }
 
+const ITEMS_PER_PAGE = 5;
+
+const formatCurrency = (val?: number) => {
+  const amount = val ?? 0;
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
 export default function CashAdvances() {
   const [advances, setAdvances] = useState<CashAdvance[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [showModal, setShowModal] = useState(false);
+
+  const role = localStorage.getItem("role") || "Employee";
+  const loggedInEmployeeId = Number(localStorage.getItem("employeeId")) || 1;
+
   const [formData, setFormData] = useState({
-    employeeId: Number(localStorage.getItem("employeeId")) || 1,
-    amount: 1000,
+    employeeId: loggedInEmployeeId,
+    cashAdvanceAmount: 1000,
+    deductionType: "Monthly",
   });
 
-  useEffect(() => {
-    const loadAdvances = async () => {
-      try {
-        const res = await api.get("/CashAdvances");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [toast, setToast] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  const showToast = useCallback(
+    (text: string, type: "success" | "error" = "success") => {
+      setToast({ text, type });
+      setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
+
+  const loadAdvances = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/CashAdvances");
+      if (role === "Employee") {
+        setAdvances(
+          res.data.filter(
+            (ca: CashAdvance) => ca.employeeId === loggedInEmployeeId,
+          ),
+        );
+      } else {
         setAdvances(res.data);
-      } catch {
-        console.error("Failed to load cash advances");
       }
+    } catch {
+      showToast("Failed to load cash advances.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [role, loggedInEmployeeId, showToast]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    api
+      .get("/CashAdvances")
+      .then((res) => {
+        if (!isMounted) return;
+        if (role === "Employee") {
+          setAdvances(
+            res.data.filter(
+              (ca: CashAdvance) => ca.employeeId === loggedInEmployeeId,
+            ),
+          );
+        } else {
+          setAdvances(res.data);
+        }
+      })
+      .catch(() => {
+        if (isMounted) showToast("Failed to load cash advances.", "error");
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    if (role === "Admin") {
+      api
+        .get("/Employees")
+        .then((res) => {
+          if (isMounted && res.data.length > 0) {
+            setEmployees(res.data);
+            setFormData((prev) => ({ ...prev, employeeId: res.data[0].id }));
+          }
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      isMounted = false;
     };
-    loadAdvances();
-  }, []);
+  }, [role, loggedInEmployeeId, showToast]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    const amount = Number(formData.cashAdvanceAmount);
     try {
       await api.post("/CashAdvances", {
-        ...formData,
-        requestDate: new Date().toISOString(),
-        status: "Pending",
+        employeeId:
+          role === "Admin" ? Number(formData.employeeId) : loggedInEmployeeId,
+        cashAdvanceAmount: amount,
+        remainingBalance: amount,
+        deductionType: formData.deductionType,
+        date: new Date().toISOString(),
+        status: "Active",
       });
       setShowModal(false);
-      const res = await api.get("/CashAdvances");
-      setAdvances(res.data);
+      setFormData({
+        employeeId:
+          role === "Admin" && employees.length > 0
+            ? employees[0].id
+            : loggedInEmployeeId,
+        cashAdvanceAmount: 1000,
+        deductionType: "Monthly",
+      });
+      showToast("Cash advance record created successfully!");
+      loadAdvances();
     } catch {
-      alert("Failed to request cash advance.");
+      showToast("Failed to process cash advance.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this cash advance request?"))
-      return;
+  const executeDelete = async () => {
+    if (deleteId === null) return;
     try {
-      await api.delete(`/CashAdvances/${id}`);
-      setAdvances(advances.filter((a) => a.id !== id));
+      await api.delete(`/CashAdvances/${deleteId}`);
+      setAdvances((prev) => prev.filter((a) => a.id !== deleteId));
+      showToast("Cash advance record deleted successfully.");
     } catch {
-      alert("Failed to delete cash advance.");
+      showToast("Failed to delete cash advance.", "error");
+    } finally {
+      setDeleteId(null);
     }
   };
+
+  const getEmployeeName = (adv: CashAdvance) => {
+    if (adv.employee) {
+      return `${adv.employee.lastName}, ${adv.employee.firstName}`;
+    }
+    return `Employee ID: ${adv.employeeId}`;
+  };
+
+  const totalPages = Math.ceil(advances.length / ITEMS_PER_PAGE);
+  const paginatedAdvances = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return advances.slice(start, start + ITEMS_PER_PAGE);
+  }, [advances, currentPage]);
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <DollarSign size={22} className="text-blue-600" /> Cash Advances
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage employee cash advance requests and repayment balances.
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <DollarSign size={20} />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Cash Advances
+            </h1>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mt-1">
+            Manage employee cash advance records and active repayment plans.
           </p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-xs hover:bg-blue-700 transition-all cursor-pointer w-full sm:w-auto justify-center"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center"
         >
-          <Plus size={16} /> Request Advance
+          <Plus size={16} />{" "}
+          {role === "Admin" ? "Add Advance Record" : "Request Advance"}
         </button>
       </div>
 
-      {/* Responsive Table Container */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-150">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 text-xs uppercase tracking-wider">
-                <th className="p-4 font-semibold">Employee</th>
-                <th className="p-4 font-semibold">Amount Requested</th>
-                <th className="p-4 font-semibold">Remaining Balance</th>
-                <th className="p-4 font-semibold">Status</th>
-                <th className="p-4 font-semibold text-right">Actions</th>
+      {/* Desktop Table View */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <th className="py-3.5 px-5">Employee</th>
+              <th className="py-3.5 px-5">Amount</th>
+              <th className="py-3.5 px-5">Remaining Balance</th>
+              <th className="py-3.5 px-5">Deduction Plan</th>
+              <th className="py-3.5 px-5">Status</th>
+              <th className="py-3.5 px-5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <Loader2
+                    size={24}
+                    className="animate-spin text-blue-600 mx-auto mb-2"
+                  />
+                  <p className="text-xs font-semibold text-slate-500">
+                    Loading cash advances...
+                  </p>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {advances.length > 0 ? (
-                advances.map((adv) => (
-                  <tr
-                    key={adv.id}
-                    className="hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="p-4 font-medium text-slate-900">
-                      {adv.employeeName || "Employee #1"}
-                    </td>
-                    <td className="p-4 text-slate-600">
-                      PHP {adv.amount.toFixed(2)}
-                    </td>
-                    <td className="p-4 font-semibold text-blue-600">
-                      PHP {adv.balance.toFixed(2)}
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
-                          adv.status === "Approved"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}
-                      >
-                        {adv.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleDelete(adv.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Delete Request"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="p-8 text-center text-slate-500 text-sm"
-                  >
-                    No cash advance records found.
+            ) : paginatedAdvances.length > 0 ? (
+              paginatedAdvances.map((adv) => (
+                <tr
+                  key={adv.id}
+                  className="hover:bg-slate-50/60 transition-colors"
+                >
+                  <td className="py-4 px-5 font-bold text-slate-900">
+                    {getEmployeeName(adv)}
+                  </td>
+                  <td className="py-4 px-5 font-mono text-xs font-bold text-slate-700">
+                    PHP {formatCurrency(adv.cashAdvanceAmount)}
+                  </td>
+                  <td className="py-4 px-5 font-mono text-xs font-bold text-blue-600">
+                    PHP{" "}
+                    {formatCurrency(
+                      adv.remainingBalance ?? adv.cashAdvanceAmount,
+                    )}
+                  </td>
+                  <td className="py-4 px-5 text-xs text-slate-600 font-medium">
+                    {adv.deductionType}
+                  </td>
+                  <td className="py-4 px-5">
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        adv.status === "Paid"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                          : "bg-blue-50 text-blue-700 border border-blue-200/60"
+                      }`}
+                    >
+                      {adv.status}
+                    </span>
+                  </td>
+                  <td className="py-4 px-5 text-right">
+                    <button
+                      onClick={() => setDeleteId(adv.id)}
+                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
+                      title="Delete Record"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-12 text-center text-slate-400 text-xs"
+                >
+                  No cash advance records found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Request Cash Advance Modal */}
+      {/* Mobile Card View */}
+      <div className="grid grid-cols-1 gap-3 md:hidden">
+        {loading ? (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
+            <Loader2 size={24} className="animate-spin text-blue-600 mx-auto" />
+            <p className="text-xs font-semibold text-slate-500">
+              Loading cards...
+            </p>
+          </div>
+        ) : paginatedAdvances.length > 0 ? (
+          paginatedAdvances.map((adv) => (
+            <div
+              key={adv.id}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3"
+            >
+              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {getEmployeeName(adv)}
+                  </h3>
+                  <span
+                    className={`mt-1 inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
+                      adv.status === "Paid"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-blue-50 text-blue-700 border border-blue-200"
+                    }`}
+                  >
+                    {adv.status}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setDeleteId(adv.id)}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Amount
+                  </span>
+                  <span className="font-mono font-bold text-slate-700">
+                    PHP {formatCurrency(adv.cashAdvanceAmount)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Balance
+                  </span>
+                  <span className="font-mono font-bold text-blue-600">
+                    PHP{" "}
+                    {formatCurrency(
+                      adv.remainingBalance ?? adv.cashAdvanceAmount,
+                    )}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Plan
+                  </span>
+                  <span className="font-semibold text-slate-700">
+                    {adv.deductionType}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
+            No cash advance records found.
+          </div>
+        )}
+      </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Request Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-md w-full space-y-5 border border-slate-200 shadow-xl">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-900">
-                Request Cash Advance
+              <h2 className="text-base font-bold text-slate-900">
+                {role === "Admin"
+                  ? "Add Cash Advance Record"
+                  : "Request Cash Advance"}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="space-y-4 text-xs">
+              {role === "Admin" && employees.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Select Employee
+                  </label>
+                  <select
+                    value={formData.employeeId}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        employeeId: Number(e.target.value),
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    required
+                  >
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.lastName}, {emp.firstName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Amount (PHP)
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Advance Amount (PHP)
                 </label>
                 <input
                   type="number"
-                  value={formData.amount}
+                  value={formData.cashAdvanceAmount}
                   onChange={(e) =>
-                    setFormData({ ...formData, amount: Number(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      cashAdvanceAmount: Number(e.target.value),
+                    })
                   }
-                  className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  min={500}
-                  step={100}
+                  disabled={isSubmitting}
+                  className="w-full border border-slate-300 p-2.5 rounded-xl font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  min={100}
+                  step={50}
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Deduction Plan
+                </label>
+                <select
+                  value={formData.deductionType}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      deductionType: e.target.value,
+                    })
+                  }
+                  disabled={isSubmitting}
+                  className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="Monthly">Monthly</option>
+                  <option value="Per Pay Period">Per Pay Period</option>
+                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-xs"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-sm active:scale-[0.98]"
                 >
-                  Submit Request
+                  {isSubmitting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : null}
+                  {role === "Admin" ? "Add Record" : "Submit Request"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteId !== null}
+        title="Delete Cash Advance"
+        message="Are you sure you want to delete this cash advance record?"
+        confirmText="Delete"
+        type="danger"
+        onConfirm={executeDelete}
+        onClose={() => setDeleteId(null)}
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        message={toast?.text || null}
+        type={toast?.type}
+        onClose={() => setToast(null)}
+      />
     </div>
   );
 }

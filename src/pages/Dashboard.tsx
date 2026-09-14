@@ -15,6 +15,10 @@ import {
   TimerReset,
   ChevronRight,
   ShieldAlert,
+  RefreshCw,
+  Timer,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import Toast from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
@@ -111,6 +115,13 @@ const formatCutoffDate = (date: Date) => {
   });
 };
 
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(value);
+
 const getGreeting = () => {
   const hour = new Date().getHours();
 
@@ -119,24 +130,24 @@ const getGreeting = () => {
   return "Good evening";
 };
 
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return (
+    <div className={`animate-pulse rounded-md bg-slate-200/70 ${className}`} />
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
 
   const employeeId = localStorage.getItem("employeeId") || "1";
   const role = localStorage.getItem("role") || "Employee";
   const userName = localStorage.getItem("userName") || "Employee";
+  const isAdmin = role === "Admin";
 
-  const [metrics, setMetrics] = useState<DashboardMetrics>({
-    regularHours: 33.5,
-    overtimeHours: 4.0,
-    totalHours: 37.5,
-    estimatedPayout: 4550,
-    lastTimeIn: null,
-    lastTimeOut: null,
-    hasClockedInToday: false,
-    hasClockedOutToday: false,
-    missedRecordsCount: 5,
-  });
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(!isAdmin);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [metricsError, setMetricsError] = useState(false);
 
   const [toast, setToast] = useState<{
     text: string;
@@ -157,32 +168,65 @@ export default function Dashboard() {
     }, 3000);
   };
 
-  const fetchDashboardData = useCallback(async () => {
-    if (role === "Admin") return;
-    try {
-      const res = await api.get(`/TimeRecords/dashboard-metrics/${employeeId}`);
-      setMetrics(res.data);
-    } catch {
-      // Keep fallback dashboard data if endpoint is unavailable.
-    }
-  }, [employeeId, role]);
+  // Single source of truth for manual/silent data refreshes.
+  // `silent` skips the full skeleton and shows a small spinner instead.
+  const refreshDashboardData = useCallback(
+    async (silent = false) => {
+      if (isAdmin) return;
 
+      if (silent) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoadingMetrics(true);
+      }
+      setMetricsError(false);
+
+      try {
+        const res = await api.get(
+          `/TimeRecords/dashboard-metrics/${employeeId}`,
+        );
+        setMetrics(res.data);
+      } catch {
+        setMetricsError(true);
+      } finally {
+        setIsLoadingMetrics(false);
+        setIsRefreshing(false);
+      }
+    },
+    [employeeId, isAdmin],
+  );
+
+  // Initial fetch on component mount
   useEffect(() => {
-    if (role === "Admin") return;
+    if (isAdmin) return;
+
     let isMounted = true;
-    api
-      .get(`/TimeRecords/dashboard-metrics/${employeeId}`)
-      .then((res) => {
-        if (isMounted && res.data) {
+
+    const loadInitialData = async () => {
+      try {
+        const res = await api.get(
+          `/TimeRecords/dashboard-metrics/${employeeId}`,
+        );
+        if (isMounted) {
           setMetrics(res.data);
         }
-      })
-      .catch(() => {});
+      } catch {
+        if (isMounted) {
+          setMetricsError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingMetrics(false);
+        }
+      }
+    };
+
+    loadInitialData();
 
     return () => {
       isMounted = false;
     };
-  }, [employeeId, role]);
+  }, [employeeId, isAdmin]);
 
   const executeTimeLog = async () => {
     if (!confirmType || isSubmitting) return;
@@ -197,7 +241,8 @@ export default function Dashboard() {
 
       showToast(`Time ${confirmType} recorded successfully.`, "success");
 
-      await fetchDashboardData();
+      // Silent refresh: keep showing current card while fresh metrics load
+      await refreshDashboardData(true);
     } catch {
       showToast(
         `Unable to record Time ${confirmType}. Please try again.`,
@@ -209,35 +254,37 @@ export default function Dashboard() {
     }
   };
 
-  const timeInDisabled = metrics.hasClockedInToday;
+  const attendanceReady = !isLoadingMetrics && !metricsError && !!metrics;
+  const timeInDisabled = !attendanceReady || metrics!.hasClockedInToday;
   const timeOutDisabled =
-    !metrics.hasClockedInToday || metrics.hasClockedOutToday;
+    !attendanceReady ||
+    !metrics!.hasClockedInToday ||
+    metrics!.hasClockedOutToday;
 
   return (
     <div className="min-h-full w-full bg-slate-50">
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
         {/* HEADER */}
-        <header className="mb-7">
+        <header className="mb-6 sm:mb-7">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="mb-1 text-sm font-medium text-slate-500">
-                {role === "Admin"
-                  ? "Administrative Portal"
-                  : "Employee Dashboard"}
+                {isAdmin ? "Administrative Portal" : "Employee Dashboard"}
               </p>
 
-              <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                 {getGreeting()}, {userName}
               </h1>
 
               <p className="mt-1 text-sm text-slate-500">
-                {role === "Admin"
+                {isAdmin
                   ? "Manage system-wide operations, approvals, and records."
                   : "Manage your attendance, requests, and work records."}
               </p>
             </div>
 
-            <div className="hidden rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-right shadow-sm sm:block space-y-0.5">
+            {/* Date/time — full card on larger screens */}
+            <div className="hidden shrink-0 space-y-0.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-right shadow-sm sm:block">
               <p className="text-xs font-medium text-slate-400">
                 {new Date().toLocaleDateString("en-PH", {
                   weekday: "long",
@@ -251,11 +298,23 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {/* Date/time — compact chip on mobile */}
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs shadow-sm sm:hidden">
+            <span className="font-medium text-slate-500">
+              {new Date().toLocaleDateString("en-PH", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+            <LiveClock />
+          </div>
         </header>
 
-        {/* ADMIN OVERVIEW CARD (Shown instead of attendance tracker for Admins) */}
-        {role === "Admin" && (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm mb-6">
+        {/* ADMIN OVERVIEW CARD */}
+        {isAdmin && (
+          <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white">
                 <ShieldAlert size={24} />
@@ -264,7 +323,7 @@ export default function Dashboard() {
                 <h2 className="text-lg font-bold text-slate-950">
                   Administrative Management Mode
                 </h2>
-                <p className="text-sm text-slate-600 leading-relaxed">
+                <p className="text-sm leading-relaxed text-slate-600">
                   Personal daily Time IN and Time OUT tracking actions are
                   restricted to standard employee accounts. Use the sidebar menu
                   to review timesheets, approve leave or overtime requests,
@@ -275,14 +334,14 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* ATTENDANCE HERO (Shown only for Employees) */}
-        {role !== "Admin" && (
+        {/* ATTENDANCE HERO */}
+        {!isAdmin && (
           <section
             aria-labelledby="attendance-heading"
             className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
           >
             <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-1">
                 <div>
                   <h2
                     id="attendance-heading"
@@ -296,310 +355,463 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                {metrics.hasClockedOutToday ? (
-                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                    <CheckCircle2 size={14} />
-                    Shift completed
-                  </div>
-                ) : metrics.hasClockedInToday ? (
-                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                    <Clock3 size={14} />
-                    Currently clocked in
-                  </div>
-                ) : (
-                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-                    <CircleHelp size={14} />
-                    Not clocked in
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => refreshDashboardData(true)}
+                    disabled={isLoadingMetrics || isRefreshing}
+                    aria-label="Refresh attendance data"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      size={15}
+                      className={isRefreshing ? "animate-spin" : ""}
+                    />
+                  </button>
+
+                  {isLoadingMetrics ? (
+                    <SkeletonBlock className="h-7 w-36 rounded-full" />
+                  ) : metricsError ? (
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700">
+                      <AlertCircle size={14} />
+                      Couldn't load status
+                    </div>
+                  ) : metrics!.hasClockedOutToday ? (
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                      <CheckCircle2 size={14} />
+                      Shift completed
+                    </div>
+                  ) : metrics!.hasClockedInToday ? (
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                      <Clock3 size={14} />
+                      Currently clocked in
+                    </div>
+                  ) : (
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                      <CircleHelp size={14} />
+                      Not clocked in
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12">
-              {/* TIME IN / OUT ACTIONS */}
-              <div className="border-b border-slate-100 p-5 sm:p-7 lg:col-span-7 lg:border-b-0 lg:border-r">
-                <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Attendance actions
-                </p>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {/* TIME IN */}
-                  <button
-                    type="button"
-                    disabled={timeInDisabled || isSubmitting}
-                    onClick={() => setConfirmType("IN")}
-                    aria-label={
-                      timeInDisabled
-                        ? "Time IN already recorded for today"
-                        : "Record Time IN"
-                    }
-                    className={`
-                      group relative flex min-h-32 flex-col justify-between
-                      rounded-xl border p-5 text-left
-                      transition-all duration-200
-                      focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
-                      ${
-                        timeInDisabled
-                          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                          : "cursor-pointer border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 hover:shadow-md"
-                      }
-                    `}
-                  >
-                    <div className="flex items-start justify-between">
-                      <span
-                        className={`
-                          flex h-10 w-10 items-center justify-center rounded-lg
-                          ${
-                            timeInDisabled
-                              ? "bg-slate-200 text-slate-400"
-                              : "bg-white/10 text-white"
-                          }
-                        `}
-                      >
-                        <LogIn size={20} />
-                      </span>
-
-                      {timeInDisabled && (
-                        <CheckCircle2 size={18} className="text-emerald-500" />
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="text-base font-bold">Time IN</p>
-
-                      <p
-                        className={`mt-1 text-xs ${
-                          timeInDisabled ? "text-slate-400" : "text-slate-300"
-                        }`}
-                      >
-                        {timeInDisabled
-                          ? "Already recorded today"
-                          : "Start your workday"}
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* TIME OUT */}
-                  <button
-                    type="button"
-                    disabled={timeOutDisabled || isSubmitting}
-                    onClick={() => setConfirmType("OUT")}
-                    aria-label={
-                      metrics.hasClockedOutToday
-                        ? "Time OUT already recorded for today"
-                        : !metrics.hasClockedInToday
-                          ? "Time OUT unavailable until Time IN is recorded"
-                          : "Record Time OUT"
-                    }
-                    className={`
-                      group relative flex min-h-32 flex-col justify-between
-                      rounded-xl border p-5 text-left
-                      transition-all duration-200
-                      focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
-                      ${
-                        timeOutDisabled
-                          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                          : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50 hover:shadow-sm"
-                      }
-                    `}
-                  >
-                    <div className="flex items-start justify-between">
-                      <span
-                        className={`
-                          flex h-10 w-10 items-center justify-center rounded-lg
-                          ${
-                            timeOutDisabled
-                              ? "bg-slate-200 text-slate-400"
-                              : "bg-slate-100 text-slate-700"
-                          }
-                        `}
-                      >
-                        <LogOut size={20} />
-                      </span>
-
-                      {metrics.hasClockedOutToday && (
-                        <CheckCircle2 size={18} className="text-emerald-500" />
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="text-base font-bold">Time OUT</p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        {metrics.hasClockedOutToday
-                          ? "Already recorded today"
-                          : !metrics.hasClockedInToday
-                            ? "Available after Time IN"
-                            : "End your workday"}
-                      </p>
-                    </div>
-                  </button>
+            {metricsError ? (
+              <div className="flex flex-col items-center gap-3 px-5 py-12 text-center sm:px-7">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                  <AlertCircle size={20} />
                 </div>
-
-                {/* Payroll rule explanation */}
-                <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5">
-                  <CircleHelp
-                    size={17}
-                    className="mt-0.5 shrink-0 text-slate-500"
-                  />
-
-                  <p className="text-xs leading-5 text-slate-600">
-                    <span className="font-semibold text-slate-800">
-                      Payroll record:
-                    </span>{" "}
-                    Your first Time IN of the day is used for payroll
-                    computation. Once recorded, Time IN is disabled to prevent
-                    duplicate entries.
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    We couldn't load today's attendance
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Check your connection and try again.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => refreshDashboardData()}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                >
+                  <RefreshCw size={13} />
+                  Try again
+                </button>
               </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12">
+                {/* TIME IN / OUT ACTIONS */}
+                <div className="border-b border-slate-100 p-5 sm:p-7 lg:col-span-7 lg:border-b-0 lg:border-r">
+                  <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Attendance actions
+                  </p>
 
-              {/* TODAY'S RECORD */}
-              <div className="p-5 sm:p-7 lg:col-span-5">
-                <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Today's record
-                </p>
-
-                <div className="space-y-3">
-                  {/* Time IN */}
-                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
-                        <LogIn size={17} />
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-medium text-slate-500">
-                          Time IN
-                        </p>
-
-                        <p className="text-sm font-bold text-slate-900">
-                          {metrics.lastTimeIn || "00:00"}
-                        </p>
-                      </div>
+                  {isLoadingMetrics ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <SkeletonBlock className="h-32 rounded-xl" />
+                      <SkeletonBlock className="h-32 rounded-xl" />
                     </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {/* TIME IN */}
+                      <button
+                        type="button"
+                        disabled={timeInDisabled || isSubmitting}
+                        onClick={() => setConfirmType("IN")}
+                        aria-label={
+                          timeInDisabled
+                            ? "Time IN already recorded for today"
+                            : "Record Time IN"
+                        }
+                        className={`
+                          group relative flex min-h-32 flex-col justify-between
+                          rounded-xl border p-5 text-left
+                          transition-all duration-200
+                          focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
+                          ${
+                            timeInDisabled
+                              ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                              : "cursor-pointer border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 hover:shadow-md active:scale-[0.99]"
+                          }
+                        `}
+                      >
+                        <div className="flex items-start justify-between">
+                          <span
+                            className={`
+                              flex h-10 w-10 items-center justify-center rounded-lg
+                              ${
+                                timeInDisabled
+                                  ? "bg-slate-200 text-slate-400"
+                                  : "bg-white/10 text-white"
+                              }
+                            `}
+                          >
+                            <LogIn size={20} />
+                          </span>
 
-                    {metrics.hasClockedInToday && (
-                      <CheckCircle2 size={17} className="text-emerald-500" />
-                    )}
-                  </div>
+                          {metrics!.hasClockedInToday && (
+                            <CheckCircle2
+                              size={18}
+                              className="text-emerald-500"
+                            />
+                          )}
+                        </div>
 
-                  {/* Time OUT */}
-                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
-                        <LogOut size={17} />
-                      </div>
+                        <div>
+                          <p className="text-base font-bold">Time IN</p>
 
-                      <div>
-                        <p className="text-xs font-medium text-slate-500">
-                          Time OUT
-                        </p>
+                          <p
+                            className={`mt-1 text-xs ${
+                              timeInDisabled
+                                ? "text-slate-400"
+                                : "text-slate-300"
+                            }`}
+                          >
+                            {metrics!.hasClockedInToday
+                              ? "Already recorded today"
+                              : "Start your workday"}
+                          </p>
+                        </div>
+                      </button>
 
-                        <p className="text-sm font-bold text-slate-900">
-                          {metrics.lastTimeOut || "00:00"}
-                        </p>
-                      </div>
+                      {/* TIME OUT */}
+                      <button
+                        type="button"
+                        disabled={timeOutDisabled || isSubmitting}
+                        onClick={() => setConfirmType("OUT")}
+                        aria-label={
+                          metrics!.hasClockedOutToday
+                            ? "Time OUT already recorded for today"
+                            : !metrics!.hasClockedInToday
+                              ? "Time OUT unavailable until Time IN is recorded"
+                              : "Record Time OUT"
+                        }
+                        className={`
+                          group relative flex min-h-32 flex-col justify-between
+                          rounded-xl border p-5 text-left
+                          transition-all duration-200
+                          focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
+                          ${
+                            timeOutDisabled
+                              ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                              : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99]"
+                          }
+                        `}
+                      >
+                        <div className="flex items-start justify-between">
+                          <span
+                            className={`
+                              flex h-10 w-10 items-center justify-center rounded-lg
+                              ${
+                                timeOutDisabled
+                                  ? "bg-slate-200 text-slate-400"
+                                  : "bg-slate-100 text-slate-700"
+                              }
+                            `}
+                          >
+                            <LogOut size={20} />
+                          </span>
+
+                          {metrics!.hasClockedOutToday && (
+                            <CheckCircle2
+                              size={18}
+                              className="text-emerald-500"
+                            />
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-base font-bold">Time OUT</p>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {metrics!.hasClockedOutToday
+                              ? "Already recorded today"
+                              : !metrics!.hasClockedInToday
+                                ? "Available after Time IN"
+                                : "End your workday"}
+                          </p>
+                        </div>
+                      </button>
                     </div>
+                  )}
 
-                    {metrics.hasClockedOutToday && (
-                      <CheckCircle2 size={17} className="text-emerald-500" />
-                    )}
-                  </div>
-
-                  {/* Manual attendance request */}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/timesheet")}
-                    className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                        <TimerReset size={17} />
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          Need an attendance correction?
-                        </p>
-
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          Submit a manual Time IN / OUT request for approval.
-                        </p>
-                      </div>
-                    </div>
-
-                    <ChevronRight
+                  {/* Payroll rule explanation */}
+                  <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                    <CircleHelp
                       size={17}
-                      className="shrink-0 text-slate-400"
+                      className="mt-0.5 shrink-0 text-slate-500"
                     />
-                  </button>
+
+                    <p className="text-xs leading-5 text-slate-600">
+                      <span className="font-semibold text-slate-800">
+                        Payroll record:
+                      </span>{" "}
+                      Your first Time IN of the day is used for payroll
+                      computation. Once recorded, Time IN is disabled to prevent
+                      duplicate entries.
+                    </p>
+                  </div>
+                </div>
+
+                {/* TODAY'S RECORD */}
+                <div className="p-5 sm:p-7 lg:col-span-5">
+                  <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Today's record
+                  </p>
+
+                  {isLoadingMetrics ? (
+                    <div className="space-y-3">
+                      <SkeletonBlock className="h-17 rounded-xl" />
+                      <SkeletonBlock className="h-17 rounded-xl" />
+                      <SkeletonBlock className="h-17 rounded-xl" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Time IN */}
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
+                            <LogIn size={17} />
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-medium text-slate-500">
+                              Time IN
+                            </p>
+
+                            <p className="text-sm font-bold text-slate-900">
+                              {metrics!.lastTimeIn || "00:00"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {metrics!.hasClockedInToday && (
+                          <CheckCircle2
+                            size={17}
+                            className="text-emerald-500"
+                          />
+                        )}
+                      </div>
+
+                      {/* Time OUT */}
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
+                            <LogOut size={17} />
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-medium text-slate-500">
+                              Time OUT
+                            </p>
+
+                            <p className="text-sm font-bold text-slate-900">
+                              {metrics!.lastTimeOut || "00:00"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {metrics!.hasClockedOutToday && (
+                          <CheckCircle2
+                            size={17}
+                            className="text-emerald-500"
+                          />
+                        )}
+                      </div>
+
+                      {/* Manual attendance request */}
+                      <button
+                        type="button"
+                        onClick={() => navigate("/timesheet")}
+                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                            <TimerReset size={17} />
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">
+                              Need an attendance correction?
+                            </p>
+
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              Submit a manual Time IN / OUT request for
+                              approval.
+                            </p>
+                          </div>
+                        </div>
+
+                        <ChevronRight
+                          size={17}
+                          className="shrink-0 text-slate-400"
+                        />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
+          </section>
+        )}
+
+        {/* THIS PERIOD SNAPSHOT */}
+        {!isAdmin && !metricsError && (
+          <section className="mt-5">
+            <div className="mb-3 flex items-end justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-950">
+                  This Period
+                </h2>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Hours logged and estimated payout for the current cutoff.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {isLoadingMetrics ? (
+                <>
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                </>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      <Timer size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {metrics!.regularHours.toFixed(1)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Regular hours
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      <TrendingUp size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {metrics!.overtimeHours.toFixed(1)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Overtime hours
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      <Clock3 size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {metrics!.totalHours.toFixed(1)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">Total hours</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                      <Wallet size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {formatCurrency(metrics!.estimatedPayout)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">Est. payout</p>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         )}
 
-        {/* MISSED RECORDS & PAYROLL CUTOFF (Hidden or adjusted for Admin if needed, or kept as info cards) */}
-        {role !== "Admin" && (
+        {/* MISSED RECORDS & PAYROLL CUTOFF */}
+        {!isAdmin && (
           <section className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* MISSED RECORDS */}
-            <button
-              type="button"
-              onClick={() => navigate("/timesheet")}
-              className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-            >
-              <div className="flex items-center gap-4">
-                <div
-                  className={`
-                    flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
-                    ${
-                      metrics.missedRecordsCount > 0
-                        ? "bg-amber-50 text-amber-600"
-                        : "bg-emerald-50 text-emerald-600"
-                    }
-                  `}
-                >
-                  {metrics.missedRecordsCount > 0 ? (
-                    <AlertCircle size={21} />
-                  ) : (
-                    <CheckCircle2 size={21} />
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900">
-                      Missed Time Records
-                    </p>
-
-                    <span
-                      className={`
-                        rounded-full px-2 py-0.5 text-xs font-bold
-                        ${
-                          metrics.missedRecordsCount > 0
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-emerald-100 text-emerald-700"
-                        }
-                      `}
-                    >
-                      {metrics.missedRecordsCount}
-                    </span>
+            {isLoadingMetrics ? (
+              <SkeletonBlock className="h-21 rounded-xl" />
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("/timesheet")}
+                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              >
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`
+                      flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
+                      ${
+                        (metrics?.missedRecordsCount ?? 0) > 0
+                          ? "bg-amber-50 text-amber-600"
+                          : "bg-emerald-50 text-emerald-600"
+                      }
+                    `}
+                  >
+                    {(metrics?.missedRecordsCount ?? 0) > 0 ? (
+                      <AlertCircle size={21} />
+                    ) : (
+                      <CheckCircle2 size={21} />
+                    )}
                   </div>
 
-                  <p className="mt-1 text-xs text-slate-500">
-                    {metrics.missedRecordsCount > 0
-                      ? "Days without a recorded Time IN."
-                      : "No missed attendance records."}
-                  </p>
-                </div>
-              </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        Missed Time Records
+                      </p>
 
-              <ArrowRight
-                size={18}
-                className="text-slate-400 transition-transform group-hover:translate-x-1"
-              />
-            </button>
+                      <span
+                        className={`
+                          rounded-full px-2 py-0.5 text-xs font-bold
+                          ${
+                            (metrics?.missedRecordsCount ?? 0) > 0
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }
+                        `}
+                      >
+                        {metrics?.missedRecordsCount ?? 0}
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {(metrics?.missedRecordsCount ?? 0) > 0
+                        ? "Days without a recorded Time IN."
+                        : "No missed attendance records."}
+                    </p>
+                  </div>
+                </div>
+
+                <ArrowRight
+                  size={18}
+                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                />
+              </button>
+            )}
 
             {/* PAYROLL CUTOFF */}
             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -646,28 +858,28 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-3 lg:grid-cols-4">
             <button
               type="button"
               onClick={() => navigate("/timesheet")}
-              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
             >
-              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
                 <Clock3 size={20} />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Timesheet</p>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                     View and manage attendance.
                   </p>
                 </div>
 
                 <ChevronRight
                   size={17}
-                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                  className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
             </button>
@@ -675,24 +887,24 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/leaves")}
-              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
             >
-              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
                 <CalendarDays size={20} />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Leaves</p>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                     Request and track leave.
                   </p>
                 </div>
 
                 <ChevronRight
                   size={17}
-                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                  className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
             </button>
@@ -700,24 +912,24 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/overtime")}
-              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
             >
-              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
                 <FileText size={20} />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Overtime</p>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                     Submit and monitor overtime.
                   </p>
                 </div>
 
                 <ChevronRight
                   size={17}
-                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                  className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
             </button>
@@ -725,24 +937,24 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/history")}
-              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
             >
-              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
                 <History size={20} />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">History</p>
 
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                     Review previous records.
                   </p>
                 </div>
 
                 <ChevronRight
                   size={17}
-                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                  className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
             </button>

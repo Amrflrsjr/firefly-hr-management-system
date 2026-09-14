@@ -1,5 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
-import { FileText, Trash2, Eye } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import {
+  FileText,
+  Trash2,
+  Eye,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  UserCheck,
+} from "lucide-react";
 import api from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
@@ -11,9 +19,14 @@ interface Employee {
   lastName: string;
 }
 
+const ITEMS_PER_PAGE = 5;
+
 export default function History() {
   const [history, setHistory] = useState<PaySlipData[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "1";
   const [selectedEmployee, setSelectedEmployee] =
@@ -28,10 +41,27 @@ export default function History() {
     type: "success" | "error";
   } | null>(null);
 
-  const showToast = (text: string, type: "success" | "error" = "success") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const showToast = useCallback(
+    (text: string, type: "success" | "error" = "success") => {
+      setToast({ text, type });
+      setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
+
+  const loadHistory = useCallback(async () => {
+    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+    if (!targetId) return;
+    setLoading(true);
+    try {
+      const res = await api.get(`/Payroll/history/${targetId}`);
+      setHistory(res.data);
+    } catch {
+      setHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedEmployee, loggedInEmployeeId, role]);
 
   useEffect(() => {
     if (role === "Admin") {
@@ -45,24 +75,29 @@ export default function History() {
         })
         .catch(() => {});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
-
-  const loadHistory = useCallback(async () => {
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
-    try {
-      const res = await api.get(`/Payroll/history/${targetId}`);
-      setHistory(res.data);
-    } catch {
-      setHistory([]);
-    }
-  }, [selectedEmployee, loggedInEmployeeId, role]);
+  }, [role, selectedEmployee]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadHistory();
-  }, [loadHistory]);
+    let isMounted = true;
+    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+    if (!targetId) return;
+
+    api
+      .get(`/Payroll/history/${targetId}`)
+      .then((res) => {
+        if (isMounted) setHistory(res.data);
+      })
+      .catch(() => {
+        if (isMounted) setHistory([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedEmployee, loggedInEmployeeId, role]);
 
   const executeDelete = async () => {
     if (deleteId === null) return;
@@ -77,28 +112,40 @@ export default function History() {
     }
   };
 
+  const totalPages = Math.ceil(history.length / ITEMS_PER_PAGE);
+  const paginatedHistory = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return history.slice(start, start + ITEMS_PER_PAGE);
+  }, [history, currentPage]);
+
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText size={22} className="text-blue-600" /> Pay Slip History
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <FileText size={20} />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Pay Slip History
+            </h1>
+          </div>
+          <p className="text-xs font-medium text-slate-500 mt-1">
             View past computed pay slips and earnings records.
           </p>
         </div>
 
+        {/* Timesheet-style Employee Selection Dropdown */}
         {role === "Admin" && employees.length > 0 && (
-          <div className="w-full sm:w-auto">
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Select Employee
-            </label>
+          <div className="relative w-full sm:w-56">
             <select
               value={selectedEmployee}
-              onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="border border-slate-300 bg-white p-2 rounded-lg text-sm w-full sm:w-64 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSelectedEmployee(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
             >
               {employees.map((emp) => (
                 <option key={emp.id} value={String(emp.id)}>
@@ -106,82 +153,176 @@ export default function History() {
                 </option>
               ))}
             </select>
+            <UserCheck
+              size={14}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            />
           </div>
         )}
       </div>
 
-      {/* History Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-125">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 text-xs uppercase tracking-wider">
-                <th className="p-4 font-semibold">Pay Period</th>
-                <th className="p-4 font-semibold">Period End</th>
-                <th className="p-4 font-semibold text-right">Net Receivable</th>
-                <th className="p-4 font-semibold text-right">Actions</th>
+      {/* Desktop History Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <th className="py-3.5 px-5">Pay Period</th>
+              <th className="py-3.5 px-5">Period End Date</th>
+              <th className="py-3.5 px-5 text-right">Net Receivable</th>
+              <th className="py-3.5 px-5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-slate-400">
+                  <Loader2
+                    size={24}
+                    className="animate-spin text-blue-600 mx-auto mb-2"
+                  />
+                  <p className="text-xs font-semibold text-slate-500">
+                    Loading history records...
+                  </p>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {history.length > 0 ? (
-                history.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="p-4 font-medium text-slate-900">
-                      {item.payPeriod}
-                    </td>
-                    <td className="p-4 text-slate-600">
-                      {new Date(item.payPeriodEnd).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-right font-semibold text-blue-600">
-                      PHP {item.netReceivable.toFixed(2)}
-                    </td>
-                    <td className="p-4 text-right space-x-2">
+            ) : paginatedHistory.length > 0 ? (
+              paginatedHistory.map((item) => (
+                <tr
+                  key={item.id}
+                  className="hover:bg-slate-50/60 transition-colors"
+                >
+                  <td className="py-4 px-5 font-bold text-slate-900">
+                    {item.payPeriod}
+                  </td>
+                  <td className="py-4 px-5 text-slate-600 text-xs font-medium">
+                    {new Date(item.payPeriodEnd).toLocaleDateString()}
+                  </td>
+                  <td className="py-4 px-5 text-right font-mono font-bold text-blue-600">
+                    PHP {item.netReceivable.toFixed(2)}
+                  </td>
+                  <td className="py-4 px-5 text-right space-x-1">
+                    <button
+                      onClick={() => setViewingPaySlip(item)}
+                      className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                      title="View Details"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    {role === "Admin" && (
                       <button
-                        onClick={() => setViewingPaySlip(item)}
-                        className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                        title="View Details"
+                        onClick={() => setDeleteId(item.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                        title="Delete Pay Slip"
                       >
-                        <Eye size={16} />
+                        <Trash2 size={16} />
                       </button>
-
-                      {role === "Admin" && (
-                        <button
-                          onClick={() => setDeleteId(item.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Delete Pay Slip"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="p-8 text-center text-slate-500 text-sm"
-                  >
-                    No pay slip history available for this employee.
+                    )}
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="py-12 text-center text-slate-400 text-xs"
+                >
+                  No pay slip history available for this employee.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Reusable Pay Slip Modal */}
+      {/* Mobile History Card View */}
+      <div className="grid grid-cols-1 gap-3 md:hidden">
+        {loading ? (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
+            <Loader2 size={24} className="animate-spin text-blue-600 mx-auto" />
+            <p className="text-xs font-semibold text-slate-500">
+              Loading history cards...
+            </p>
+          </div>
+        ) : paginatedHistory.length > 0 ? (
+          paginatedHistory.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3"
+            >
+              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {item.payPeriod}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    End: {new Date(item.payPeriodEnd).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setViewingPaySlip(item)}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                  >
+                    <Eye size={16} />
+                  </button>
+                  {role === "Admin" && (
+                    <button
+                      onClick={() => setDeleteId(item.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-500">
+                  Net Receivable:
+                </span>
+                <span className="font-mono font-bold text-blue-600 text-sm">
+                  PHP {item.netReceivable.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
+            No pay slip history available.
+          </div>
+        )}
+      </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <PaySlipModal
         isOpen={viewingPaySlip !== null}
         paySlip={viewingPaySlip}
         onClose={() => setViewingPaySlip(null)}
       />
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteId !== null}
         title="Delete Pay Slip Record"
@@ -192,7 +333,6 @@ export default function History() {
         onClose={() => setDeleteId(null)}
       />
 
-      {/* Toast Notification */}
       <Toast
         message={toast?.text || null}
         type={toast?.type}
