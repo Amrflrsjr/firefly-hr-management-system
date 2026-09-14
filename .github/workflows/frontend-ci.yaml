@@ -21,7 +21,7 @@ jobs:
 
       - name: Install & Build
         env:
-          VITE_API_BASE_URL: "" # Relative path targets https://d1fnbi2c6cj13f.cloudfront.net/api
+          VITE_API_BASE_URL: ""
         run: |
           npm ci
           npm run build

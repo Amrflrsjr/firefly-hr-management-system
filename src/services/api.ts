@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// 1. Read env var, fallback to empty string (relative path) so CloudFront proxy handles it
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const api = axios.create({
