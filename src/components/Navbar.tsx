@@ -1,0 +1,200 @@
+import { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import {
+  Users,
+  Calendar,
+  Clock,
+  DollarSign,
+  FileText,
+  History as HistoryIcon,
+  LogOut,
+  LayoutDashboard,
+  Menu,
+  X,
+  ChevronRight,
+  User,
+} from "lucide-react";
+
+export default function Navbar() {
+  const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const role = localStorage.getItem("role") || "Employee";
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/login");
+  };
+
+  const isActive = (path: string) => location.pathname === path;
+
+  const navLinks = [
+    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/timesheet", label: "Timesheet", icon: FileText },
+    { to: "/leaves", label: "Leaves", icon: Calendar },
+    { to: "/overtime", label: "Overtime", icon: Clock },
+    { to: "/history", label: "History", icon: HistoryIcon },
+    { to: "/profile", label: "Profile", icon: User }, // Moved here so it's accessible to everyone
+    ...(role === "Admin"
+      ? [
+          { to: "/employees", label: "Employees", icon: Users },
+          { to: "/holidays", label: "Holidays", icon: Calendar },
+          { to: "/payroll", label: "Payroll", icon: DollarSign },
+          { to: "/cash-advances", label: "Advances", icon: DollarSign },
+        ]
+      : []),
+  ];
+
+  return (
+    <>
+      {/* Mobile Top Bar */}
+      <div className="md:hidden bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3 flex justify-between items-center shadow-2xs">
+        <div
+          className="flex items-center gap-2.5 cursor-pointer"
+          onClick={() => navigate("/dashboard")}
+        >
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-xs">
+            F
+          </div>
+          <span className="font-semibold text-slate-900 tracking-tight text-base">
+            Firefly HRIS
+          </span>
+        </div>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-hidden"
+        >
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* Mobile Overlay & Drawer */}
+      {isOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="relative bg-white w-64 max-w-xs h-full flex flex-col p-4 shadow-xl border-r border-slate-200 z-10">
+            <div className="flex justify-between items-center pb-4 mb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-xs">
+                  F
+                </div>
+                <span className="font-semibold text-slate-900 text-sm">
+                  Firefly HRIS
+                </span>
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <nav className="flex-1 space-y-1 overflow-y-auto">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive(link.to)
+                        ? "bg-blue-50 text-blue-600 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <Icon size={18} /> {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between px-3">
+                <span className="text-xs font-medium text-slate-500">Role</span>
+                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-700 font-semibold rounded uppercase border border-slate-200">
+                  {role}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  handleLogout();
+                }}
+                className="flex items-center gap-2 text-rose-600 text-sm font-medium w-full px-3 py-2 rounded-lg hover:bg-rose-50 transition-colors"
+              >
+                <LogOut size={16} /> Logout System
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Vertical Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 border-r border-slate-200 bg-white h-screen sticky top-0 shrink-0">
+        {/* Brand Header */}
+        <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold shadow-xs text-base">
+            F
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-900 tracking-tight text-sm">
+              Firefly HRIS
+            </h2>
+            <p className="text-[11px] text-slate-400">Management Suite</p>
+          </div>
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {navLinks.map((link) => {
+            const Icon = link.icon;
+            const active = isActive(link.to);
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  active
+                    ? "bg-blue-600 text-white shadow-xs font-semibold"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon
+                    size={18}
+                    className={active ? "text-white" : "text-slate-400"}
+                  />
+                  <span>{link.label}</span>
+                </div>
+                {active && <ChevronRight size={14} className="text-white/70" />}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User Role & Logout Panel */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 m-3 rounded-xl border space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500">
+              Access Level
+            </span>
+            <span className="text-[10px] px-2 py-0.5 bg-white text-slate-700 font-bold rounded-md border border-slate-200 uppercase tracking-wider">
+              {role}
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 w-full text-slate-600 hover:text-rose-600 text-xs font-semibold transition-colors cursor-pointer pt-1"
+          >
+            <LogOut size={15} /> Sign Out Account
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}

@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --bg-main: #f8fafc; /* Slate 50 */
+  --surface: #ffffff;
+  --text-main: #0f172a; /* Slate 900 */
+  --text-muted: #64748b; /* Slate 500 */
+  --border-color: #e2e8f0; /* Slate 200 */
+  --primary: #2563eb; /* Professional Blue */
+  --primary-hover: #1d4ed8;
+  --accent: #0ea5e9; /* Sky blue accent */
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}

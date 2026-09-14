@@ -1,0 +1,781 @@
+import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+import {
+  LogIn,
+  LogOut,
+  Clock3,
+  CalendarDays,
+  FileText,
+  History,
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  CircleHelp,
+  TimerReset,
+  ChevronRight,
+  ShieldAlert,
+} from "lucide-react";
+import Toast from "../components/Toast";
+import ConfirmModal from "../components/ConfirmModal";
+
+interface DashboardMetrics {
+  regularHours: number;
+  overtimeHours: number;
+  totalHours: number;
+  estimatedPayout: number;
+  lastTimeIn: string | null;
+  lastTimeOut: string | null;
+  hasClockedInToday: boolean;
+  hasClockedOutToday: boolean;
+  missedRecordsCount: number;
+}
+
+type LogType = "IN" | "OUT";
+
+function LiveClock() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <span className="font-mono font-bold text-slate-900">
+      {time.toLocaleTimeString("en-PH", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      })}
+    </span>
+  );
+}
+
+const getPayrollCutoff = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+
+  const cutoffDates = [
+    new Date(year, month, 13),
+    new Date(year, month, lastDayOfMonth - 2),
+  ];
+
+  const nextCutoff = cutoffDates.find(
+    (date) =>
+      date.getTime() >=
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+      ).getTime(),
+  );
+
+  if (nextCutoff) {
+    return nextCutoff;
+  }
+
+  return new Date(year, month + 1, 13);
+};
+
+const getDaysUntil = (targetDate: Date) => {
+  const today = new Date();
+
+  const start = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+
+  const target = new Date(
+    targetDate.getFullYear(),
+    targetDate.getMonth(),
+    targetDate.getDate(),
+  );
+
+  return Math.max(
+    0,
+    Math.ceil((target.getTime() - start.getTime()) / 86400000),
+  );
+};
+
+const formatCutoffDate = (date: Date) => {
+  return date.toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+
+  const employeeId = localStorage.getItem("employeeId") || "1";
+  const role = localStorage.getItem("role") || "Employee";
+  const userName = localStorage.getItem("userName") || "Employee";
+
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    regularHours: 33.5,
+    overtimeHours: 4.0,
+    totalHours: 37.5,
+    estimatedPayout: 4550,
+    lastTimeIn: null,
+    lastTimeOut: null,
+    hasClockedInToday: false,
+    hasClockedOutToday: false,
+    missedRecordsCount: 5,
+  });
+
+  const [toast, setToast] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  const [confirmType, setConfirmType] = useState<LogType | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const payrollCutoff = getPayrollCutoff();
+  const daysUntilCutoff = getDaysUntil(payrollCutoff);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToast({ text, type });
+
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  const fetchDashboardData = useCallback(async () => {
+    if (role === "Admin") return;
+    try {
+      const res = await api.get(`/TimeRecords/dashboard-metrics/${employeeId}`);
+      setMetrics(res.data);
+    } catch {
+      // Keep fallback dashboard data if endpoint is unavailable.
+    }
+  }, [employeeId, role]);
+
+  useEffect(() => {
+    if (role === "Admin") return;
+    let isMounted = true;
+    api
+      .get(`/TimeRecords/dashboard-metrics/${employeeId}`)
+      .then((res) => {
+        if (isMounted && res.data) {
+          setMetrics(res.data);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [employeeId, role]);
+
+  const executeTimeLog = async () => {
+    if (!confirmType || isSubmitting) return;
+
+    try {
+      setIsSubmitting(true);
+
+      await api.post("/TimeRecords/time-in-out", {
+        employeeId: Number(employeeId),
+        type: confirmType,
+      });
+
+      showToast(`Time ${confirmType} recorded successfully.`, "success");
+
+      await fetchDashboardData();
+    } catch {
+      showToast(
+        `Unable to record Time ${confirmType}. Please try again.`,
+        "error",
+      );
+    } finally {
+      setIsSubmitting(false);
+      setConfirmType(null);
+    }
+  };
+
+  const timeInDisabled = metrics.hasClockedInToday;
+  const timeOutDisabled =
+    !metrics.hasClockedInToday || metrics.hasClockedOutToday;
+
+  return (
+    <div className="min-h-full w-full bg-slate-50">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {/* HEADER */}
+        <header className="mb-7">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="mb-1 text-sm font-medium text-slate-500">
+                {role === "Admin"
+                  ? "Administrative Portal"
+                  : "Employee Dashboard"}
+              </p>
+
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+                {getGreeting()}, {userName}
+              </h1>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {role === "Admin"
+                  ? "Manage system-wide operations, approvals, and records."
+                  : "Manage your attendance, requests, and work records."}
+              </p>
+            </div>
+
+            <div className="hidden rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-right shadow-sm sm:block space-y-0.5">
+              <p className="text-xs font-medium text-slate-400">
+                {new Date().toLocaleDateString("en-PH", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+              <div className="text-sm">
+                <LiveClock />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ADMIN OVERVIEW CARD (Shown instead of attendance tracker for Admins) */}
+        {role === "Admin" && (
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm mb-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white">
+                <ShieldAlert size={24} />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold text-slate-950">
+                  Administrative Management Mode
+                </h2>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Personal daily Time IN and Time OUT tracking actions are
+                  restricted to standard employee accounts. Use the sidebar menu
+                  to review timesheets, approve leave or overtime requests,
+                  manage company holidays, and process payroll cycles.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ATTENDANCE HERO (Shown only for Employees) */}
+        {role !== "Admin" && (
+          <section
+            aria-labelledby="attendance-heading"
+            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+          >
+            <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2
+                    id="attendance-heading"
+                    className="text-base font-bold text-slate-950"
+                  >
+                    Today's Attendance
+                  </h2>
+
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    Record your attendance for today's shift.
+                  </p>
+                </div>
+
+                {metrics.hasClockedOutToday ? (
+                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                    <CheckCircle2 size={14} />
+                    Shift completed
+                  </div>
+                ) : metrics.hasClockedInToday ? (
+                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                    <Clock3 size={14} />
+                    Currently clocked in
+                  </div>
+                ) : (
+                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                    <CircleHelp size={14} />
+                    Not clocked in
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12">
+              {/* TIME IN / OUT ACTIONS */}
+              <div className="border-b border-slate-100 p-5 sm:p-7 lg:col-span-7 lg:border-b-0 lg:border-r">
+                <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Attendance actions
+                </p>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* TIME IN */}
+                  <button
+                    type="button"
+                    disabled={timeInDisabled || isSubmitting}
+                    onClick={() => setConfirmType("IN")}
+                    aria-label={
+                      timeInDisabled
+                        ? "Time IN already recorded for today"
+                        : "Record Time IN"
+                    }
+                    className={`
+                      group relative flex min-h-32 flex-col justify-between
+                      rounded-xl border p-5 text-left
+                      transition-all duration-200
+                      focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
+                      ${
+                        timeInDisabled
+                          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                          : "cursor-pointer border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 hover:shadow-md"
+                      }
+                    `}
+                  >
+                    <div className="flex items-start justify-between">
+                      <span
+                        className={`
+                          flex h-10 w-10 items-center justify-center rounded-lg
+                          ${
+                            timeInDisabled
+                              ? "bg-slate-200 text-slate-400"
+                              : "bg-white/10 text-white"
+                          }
+                        `}
+                      >
+                        <LogIn size={20} />
+                      </span>
+
+                      {timeInDisabled && (
+                        <CheckCircle2 size={18} className="text-emerald-500" />
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-base font-bold">Time IN</p>
+
+                      <p
+                        className={`mt-1 text-xs ${
+                          timeInDisabled ? "text-slate-400" : "text-slate-300"
+                        }`}
+                      >
+                        {timeInDisabled
+                          ? "Already recorded today"
+                          : "Start your workday"}
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* TIME OUT */}
+                  <button
+                    type="button"
+                    disabled={timeOutDisabled || isSubmitting}
+                    onClick={() => setConfirmType("OUT")}
+                    aria-label={
+                      metrics.hasClockedOutToday
+                        ? "Time OUT already recorded for today"
+                        : !metrics.hasClockedInToday
+                          ? "Time OUT unavailable until Time IN is recorded"
+                          : "Record Time OUT"
+                    }
+                    className={`
+                      group relative flex min-h-32 flex-col justify-between
+                      rounded-xl border p-5 text-left
+                      transition-all duration-200
+                      focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
+                      ${
+                        timeOutDisabled
+                          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                          : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50 hover:shadow-sm"
+                      }
+                    `}
+                  >
+                    <div className="flex items-start justify-between">
+                      <span
+                        className={`
+                          flex h-10 w-10 items-center justify-center rounded-lg
+                          ${
+                            timeOutDisabled
+                              ? "bg-slate-200 text-slate-400"
+                              : "bg-slate-100 text-slate-700"
+                          }
+                        `}
+                      >
+                        <LogOut size={20} />
+                      </span>
+
+                      {metrics.hasClockedOutToday && (
+                        <CheckCircle2 size={18} className="text-emerald-500" />
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-base font-bold">Time OUT</p>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        {metrics.hasClockedOutToday
+                          ? "Already recorded today"
+                          : !metrics.hasClockedInToday
+                            ? "Available after Time IN"
+                            : "End your workday"}
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Payroll rule explanation */}
+                <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                  <CircleHelp
+                    size={17}
+                    className="mt-0.5 shrink-0 text-slate-500"
+                  />
+
+                  <p className="text-xs leading-5 text-slate-600">
+                    <span className="font-semibold text-slate-800">
+                      Payroll record:
+                    </span>{" "}
+                    Your first Time IN of the day is used for payroll
+                    computation. Once recorded, Time IN is disabled to prevent
+                    duplicate entries.
+                  </p>
+                </div>
+              </div>
+
+              {/* TODAY'S RECORD */}
+              <div className="p-5 sm:p-7 lg:col-span-5">
+                <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Today's record
+                </p>
+
+                <div className="space-y-3">
+                  {/* Time IN */}
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
+                        <LogIn size={17} />
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-medium text-slate-500">
+                          Time IN
+                        </p>
+
+                        <p className="text-sm font-bold text-slate-900">
+                          {metrics.lastTimeIn || "00:00"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {metrics.hasClockedInToday && (
+                      <CheckCircle2 size={17} className="text-emerald-500" />
+                    )}
+                  </div>
+
+                  {/* Time OUT */}
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
+                        <LogOut size={17} />
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-medium text-slate-500">
+                          Time OUT
+                        </p>
+
+                        <p className="text-sm font-bold text-slate-900">
+                          {metrics.lastTimeOut || "00:00"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {metrics.hasClockedOutToday && (
+                      <CheckCircle2 size={17} className="text-emerald-500" />
+                    )}
+                  </div>
+
+                  {/* Manual attendance request */}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/timesheet")}
+                    className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                        <TimerReset size={17} />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          Need an attendance correction?
+                        </p>
+
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Submit a manual Time IN / OUT request for approval.
+                        </p>
+                      </div>
+                    </div>
+
+                    <ChevronRight
+                      size={17}
+                      className="shrink-0 text-slate-400"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* MISSED RECORDS & PAYROLL CUTOFF (Hidden or adjusted for Admin if needed, or kept as info cards) */}
+        {role !== "Admin" && (
+          <section className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* MISSED RECORDS */}
+            <button
+              type="button"
+              onClick={() => navigate("/timesheet")}
+              className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className={`
+                    flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
+                    ${
+                      metrics.missedRecordsCount > 0
+                        ? "bg-amber-50 text-amber-600"
+                        : "bg-emerald-50 text-emerald-600"
+                    }
+                  `}
+                >
+                  {metrics.missedRecordsCount > 0 ? (
+                    <AlertCircle size={21} />
+                  ) : (
+                    <CheckCircle2 size={21} />
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Missed Time Records
+                    </p>
+
+                    <span
+                      className={`
+                        rounded-full px-2 py-0.5 text-xs font-bold
+                        ${
+                          metrics.missedRecordsCount > 0
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
+                        }
+                      `}
+                    >
+                      {metrics.missedRecordsCount}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    {metrics.missedRecordsCount > 0
+                      ? "Days without a recorded Time IN."
+                      : "No missed attendance records."}
+                  </p>
+                </div>
+              </div>
+
+              <ArrowRight
+                size={18}
+                className="text-slate-400 transition-transform group-hover:translate-x-1"
+              />
+            </button>
+
+            {/* PAYROLL CUTOFF */}
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <CalendarDays size={21} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Next Payroll Cut-off
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatCutoffDate(payrollCutoff)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <p className="text-xl font-bold text-slate-950">
+                  {daysUntilCutoff}
+                </p>
+
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  {daysUntilCutoff === 1 ? "day" : "days"} left
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* QUICK ACCESS MODULES */}
+        <section className="mt-8">
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-950">
+                Quick Access
+              </h2>
+
+              <p className="mt-0.5 text-sm text-slate-500">
+                Frequently used employee modules.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => navigate("/timesheet")}
+              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            >
+              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                <Clock3 size={20} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Timesheet</p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    View and manage attendance.
+                  </p>
+                </div>
+
+                <ChevronRight
+                  size={17}
+                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/leaves")}
+              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            >
+              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                <CalendarDays size={20} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Leaves</p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Request and track leave.
+                  </p>
+                </div>
+
+                <ChevronRight
+                  size={17}
+                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/overtime")}
+              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            >
+              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                <FileText size={20} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Overtime</p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Submit and monitor overtime.
+                  </p>
+                </div>
+
+                <ChevronRight
+                  size={17}
+                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/history")}
+              className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            >
+              <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                <History size={20} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">History</p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Review previous records.
+                  </p>
+                </div>
+
+                <ChevronRight
+                  size={17}
+                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                />
+              </div>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      {/* CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={confirmType !== null}
+        title={`Confirm Time ${confirmType}`}
+        message={
+          confirmType === "IN"
+            ? "Are you sure you want to record your Time IN for today?"
+            : "Are you sure you want to record your Time OUT for today?"
+        }
+        confirmText={
+          isSubmitting ? "Recording..." : `Confirm Time ${confirmType}`
+        }
+        onConfirm={executeTimeLog}
+        onClose={() => {
+          if (!isSubmitting) {
+            setConfirmType(null);
+          }
+        }}
+      />
+
+      {/* TOAST NOTIFICATION */}
+      <Toast
+        message={toast?.text || null}
+        type={toast?.type}
+        onClose={() => setToast(null)}
+      />
+    </div>
+  );
+}
