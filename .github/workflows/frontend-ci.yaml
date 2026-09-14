@@ -21,7 +21,7 @@ jobs:
 
       - name: Install & Build
         env:
-          VITE_API_BASE_URL: "http://18.140.135.68:8080" # Active backend ECS IP
+          VITE_API_BASE_URL: "http://firefly-hr-alb-1608613018.ap-southeast-1.elb.amazonaws.com"
         run: |
           npm ci
           npm run build
