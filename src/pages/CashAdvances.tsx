@@ -8,6 +8,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Check,
+  Ban,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
@@ -57,6 +59,7 @@ export default function CashAdvances() {
   });
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [cancelId, setCancelId] = useState<number | null>(null);
   const [toast, setToast] = useState<{
     text: string;
     type: "success" | "error";
@@ -143,7 +146,7 @@ export default function CashAdvances() {
         remainingBalance: amount,
         deductionType: formData.deductionType,
         date: new Date().toISOString(),
-        status: "Active",
+        status: "Pending",
       });
       setShowModal(false);
       setFormData({
@@ -154,12 +157,49 @@ export default function CashAdvances() {
         cashAdvanceAmount: 1000,
         deductionType: "Monthly",
       });
-      showToast("Cash advance record created successfully!");
+      showToast(
+        role === "Admin"
+          ? "Cash advance record created successfully!"
+          : "Cash advance request submitted for approval!",
+      );
       loadAdvances();
     } catch {
       showToast("Failed to process cash advance.", "error");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleApprove = async (id: number) => {
+    try {
+      await api.put(`/CashAdvances/${id}/approve`);
+      showToast("Cash advance approved successfully!");
+      loadAdvances();
+    } catch {
+      showToast("Failed to approve cash advance.", "error");
+    }
+  };
+
+  const handleDecline = async (id: number) => {
+    try {
+      await api.put(`/CashAdvances/${id}/decline`);
+      showToast("Cash advance request declined.", "error");
+      loadAdvances();
+    } catch {
+      showToast("Failed to decline cash advance.", "error");
+    }
+  };
+
+  const executeCancel = async () => {
+    if (cancelId === null) return;
+    try {
+      await api.put(`/CashAdvances/${cancelId}/cancel`);
+      showToast("Cash advance request canceled.");
+      loadAdvances();
+    } catch {
+      showToast("Failed to cancel cash advance request.", "error");
+    } finally {
+      setCancelId(null);
     }
   };
 
@@ -188,6 +228,12 @@ export default function CashAdvances() {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return advances.slice(start, start + ITEMS_PER_PAGE);
   }, [advances, currentPage]);
+
+  // Determine if there are any available actions on the current page
+  const hasActionsOnPage = useMemo(() => {
+    if (role === "Admin") return true; // Admin can always delete records
+    return paginatedAdvances.some((adv) => adv.status === "Pending"); // Employees only have action if status is Pending
+  }, [role, paginatedAdvances]);
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
@@ -225,13 +271,18 @@ export default function CashAdvances() {
               <th className="py-3.5 px-5">Remaining Balance</th>
               <th className="py-3.5 px-5">Deduction Plan</th>
               <th className="py-3.5 px-5">Status</th>
-              <th className="py-3.5 px-5 text-right">Actions</th>
+              {hasActionsOnPage && (
+                <th className="py-3.5 px-5 text-right">Actions</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-slate-400">
+                <td
+                  colSpan={hasActionsOnPage ? 6 : 5}
+                  className="py-12 text-center text-slate-400"
+                >
                   <Loader2
                     size={24}
                     className="animate-spin text-amber-600 mx-auto mb-2"
@@ -265,29 +316,70 @@ export default function CashAdvances() {
                   <td className="py-4 px-5">
                     <span
                       className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        adv.status === "Paid"
+                        adv.status === "Active"
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                          : "bg-amber-50 border border-amber-200/60"
+                          : adv.status === "Declined" ||
+                              adv.status === "Canceled"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200/60"
+                            : adv.status === "Paid"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200/60"
+                              : "bg-amber-50 text-amber-800 border border-amber-200/60"
                       }`}
                     >
                       {adv.status}
                     </span>
                   </td>
-                  <td className="py-4 px-5 text-right">
-                    <button
-                      onClick={() => setDeleteId(adv.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
-                      title="Delete Record"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
+                  {hasActionsOnPage && (
+                    <td className="py-4 px-5 text-right space-x-1">
+                      {/* Admin Approval Actions */}
+                      {role === "Admin" && adv.status === "Pending" && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(adv.id)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                            title="Approve Request"
+                          >
+                            <Check size={13} /> Approve
+                          </button>
+                          <button
+                            onClick={() => handleDecline(adv.id)}
+                            className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                            title="Decline Request"
+                          >
+                            <X size={13} /> Decline
+                          </button>
+                        </>
+                      )}
+
+                      {/* Employee / Admin Cancel Action */}
+                      {adv.status === "Pending" && (
+                        <button
+                          onClick={() => setCancelId(adv.id)}
+                          className="px-2.5 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                          title="Cancel Request"
+                        >
+                          <Ban size={13} /> Cancel
+                        </button>
+                      )}
+
+                      {/* Admin Delete Action */}
+                      {role === "Admin" && (
+                        <button
+                          onClick={() => setDeleteId(adv.id)}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
+                          title="Delete Record"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))
             ) : (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={hasActionsOnPage ? 6 : 5}
                   className="py-12 text-center text-slate-400 text-xs"
                 >
                   No cash advance records found.
@@ -323,20 +415,26 @@ export default function CashAdvances() {
                   </h3>
                   <span
                     className={`mt-1 inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
-                      adv.status === "Paid"
+                      adv.status === "Active"
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : "bg-amber-50 border border-amber-200"
+                        : adv.status === "Declined" || adv.status === "Canceled"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : adv.status === "Paid"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : "bg-amber-50 text-amber-800 border border-amber-200"
                     }`}
                   >
                     {adv.status}
                   </span>
                 </div>
-                <button
-                  onClick={() => setDeleteId(adv.id)}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {role === "Admin" && (
+                  <button
+                    onClick={() => setDeleteId(adv.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-2 text-xs pt-1">
                 <div>
@@ -367,6 +465,36 @@ export default function CashAdvances() {
                   </span>
                 </div>
               </div>
+
+              {/* Mobile Actions */}
+              {(role === "Admin" || adv.status === "Pending") && (
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  {role === "Admin" && adv.status === "Pending" && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(adv.id)}
+                        className="w-full py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1"
+                      >
+                        <Check size={14} /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleDecline(adv.id)}
+                        className="w-full py-1.5 bg-rose-600 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1"
+                      >
+                        <X size={14} /> Decline
+                      </button>
+                    </>
+                  )}
+                  {adv.status === "Pending" && (
+                    <button
+                      onClick={() => setCancelId(adv.id)}
+                      className="w-full py-1.5 bg-rose-500 text-white hover:bg-rose-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1"
+                    >
+                      <Ban size={14} /> Cancel Request
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))
         ) : (
@@ -512,7 +640,17 @@ export default function CashAdvances() {
         </div>
       )}
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modals */}
+      <ConfirmModal
+        isOpen={cancelId !== null}
+        title="Cancel Cash Advance Request"
+        message="Are you sure you want to cancel this pending cash advance request?"
+        confirmText="Cancel Request"
+        type="danger"
+        onConfirm={executeCancel}
+        onClose={() => setCancelId(null)}
+      />
+
       <ConfirmModal
         isOpen={deleteId !== null}
         title="Delete Cash Advance"
