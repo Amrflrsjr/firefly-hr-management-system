@@ -316,7 +316,7 @@ export default function Dashboard() {
         {isAdmin && (
           <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-(--primary) text-slate-950 font-bold">
                 <ShieldAlert size={24} />
               </div>
               <div className="space-y-1">
@@ -361,7 +361,7 @@ export default function Dashboard() {
                     onClick={() => refreshDashboardData(true)}
                     disabled={isLoadingMetrics || isRefreshing}
                     aria-label="Refresh attendance data"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                   >
                     <RefreshCw
                       size={15}
@@ -382,7 +382,7 @@ export default function Dashboard() {
                       Shift completed
                     </div>
                   ) : metrics!.hasClockedInToday ? (
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-(--brand-light)/30 px-3 py-1.5 text-xs font-semibold text-slate-900">
                       <Clock3 size={14} />
                       Currently clocked in
                     </div>
@@ -412,7 +412,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => refreshDashboardData()}
-                  className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-(--primary) px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-(--primary-hover) cursor-pointer"
                 >
                   <RefreshCw size={13} />
                   Try again
@@ -447,22 +447,22 @@ export default function Dashboard() {
                           group relative flex min-h-32 flex-col justify-between
                           rounded-xl border p-5 text-left
                           transition-all duration-200
-                          focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
+                          focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2
                           ${
                             timeInDisabled
                               ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                              : "cursor-pointer border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 hover:shadow-md active:scale-[0.99]"
+                              : "cursor-pointer border-(--primary) bg-(--primary) text-slate-950 shadow-sm hover:bg-(--primary-hover) hover:shadow-md active:scale-[0.99]"
                           }
                         `}
                       >
                         <div className="flex items-start justify-between">
                           <span
                             className={`
-                              flex h-10 w-10 items-center justify-center rounded-lg
+                              flex h-10 w-10 items-center justify-center rounded-lg font-bold
                               ${
                                 timeInDisabled
                                   ? "bg-slate-200 text-slate-400"
-                                  : "bg-white/10 text-white"
+                                  : "bg-white/20 text-slate-950"
                               }
                             `}
                           >
@@ -472,7 +472,7 @@ export default function Dashboard() {
                           {metrics!.hasClockedInToday && (
                             <CheckCircle2
                               size={18}
-                              className="text-emerald-500"
+                              className="text-emerald-600"
                             />
                           )}
                         </div>
@@ -481,10 +481,10 @@ export default function Dashboard() {
                           <p className="text-base font-bold">Time IN</p>
 
                           <p
-                            className={`mt-1 text-xs ${
+                            className={`mt-1 text-xs font-semibold ${
                               timeInDisabled
                                 ? "text-slate-400"
-                                : "text-slate-300"
+                                : "text-slate-900/80"
                             }`}
                           >
                             {metrics!.hasClockedInToday
@@ -510,11 +510,11 @@ export default function Dashboard() {
                           group relative flex min-h-32 flex-col justify-between
                           rounded-xl border p-5 text-left
                           transition-all duration-200
-                          focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2
+                          focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2
                           ${
                             timeOutDisabled
                               ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                              : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99]"
+                              : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-(--primary) hover:bg-amber-50/20 hover:shadow-sm active:scale-[0.99]"
                           }
                         `}
                       >
@@ -525,7 +525,7 @@ export default function Dashboard() {
                               ${
                                 timeOutDisabled
                                   ? "bg-slate-200 text-slate-400"
-                                  : "bg-slate-100 text-slate-700"
+                                  : "bg-amber-100 text-amber-900"
                               }
                             `}
                           >
@@ -535,7 +535,7 @@ export default function Dashboard() {
                           {metrics!.hasClockedOutToday && (
                             <CheckCircle2
                               size={18}
-                              className="text-emerald-500"
+                              className="text-emerald-600"
                             />
                           )}
                         </div>
@@ -556,10 +556,10 @@ export default function Dashboard() {
                   )}
 
                   {/* Payroll rule explanation */}
-                  <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                  <div className="mt-4 flex gap-3 rounded-lg border border-(--brand-light)/40 bg-amber-50/30 p-3.5">
                     <CircleHelp
                       size={17}
-                      className="mt-0.5 shrink-0 text-slate-500"
+                      className="mt-0.5 shrink-0 text-amber-700"
                     />
 
                     <p className="text-xs leading-5 text-slate-600">
@@ -608,7 +608,7 @@ export default function Dashboard() {
                         {metrics!.hasClockedInToday && (
                           <CheckCircle2
                             size={17}
-                            className="text-emerald-500"
+                            className="text-emerald-600"
                           />
                         )}
                       </div>
@@ -634,7 +634,7 @@ export default function Dashboard() {
                         {metrics!.hasClockedOutToday && (
                           <CheckCircle2
                             size={17}
-                            className="text-emerald-500"
+                            className="text-emerald-600"
                           />
                         )}
                       </div>
@@ -643,10 +643,10 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => navigate("/timesheet")}
-                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-(--primary) hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-800">
                             <TimerReset size={17} />
                           </div>
 
@@ -734,7 +734,7 @@ export default function Dashboard() {
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-(--brand-light)/30 text-slate-950">
                       <Wallet size={18} />
                     </div>
                     <p className="text-lg font-bold text-slate-950 sm:text-xl">
@@ -758,7 +758,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate("/timesheet")}
-                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
               >
                 <div className="flex items-center gap-4">
                   <div
@@ -766,8 +766,8 @@ export default function Dashboard() {
                       flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
                       ${
                         (metrics?.missedRecordsCount ?? 0) > 0
-                          ? "bg-amber-50 text-amber-600"
-                          : "bg-emerald-50 text-emerald-600"
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-emerald-50 text-emerald-700"
                       }
                     `}
                   >
@@ -789,8 +789,8 @@ export default function Dashboard() {
                           rounded-full px-2 py-0.5 text-xs font-bold
                           ${
                             (metrics?.missedRecordsCount ?? 0) > 0
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-emerald-100 text-emerald-700"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-emerald-100 text-emerald-800"
                           }
                         `}
                       >
@@ -816,7 +816,7 @@ export default function Dashboard() {
             {/* PAYROLL CUTOFF */}
             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--brand-light)/30 text-slate-950">
                   <CalendarDays size={21} />
                 </div>
 
@@ -862,9 +862,9 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/timesheet")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
                 <Clock3 size={20} />
               </div>
 
@@ -887,9 +887,9 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/leaves")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
                 <CalendarDays size={20} />
               </div>
 
@@ -912,9 +912,9 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/overtime")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
                 <FileText size={20} />
               </div>
 
@@ -937,9 +937,9 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/history")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 sm:p-5"
+              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 sm:mb-8">
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
                 <History size={20} />
               </div>
 

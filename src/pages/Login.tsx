@@ -11,10 +11,8 @@ import {
   AlertTriangle,
   ArrowLeft,
 } from "lucide-react";
+import FireflyLogo from "../components/FireflyLogo";
 
-// ASP.NET Core error responses can show up as a plain string, a
-// ProblemDetails object ({ title }), or a model-validation object
-// ({ message }). Normalize all of them to a safe, displayable string.
 function getErrorMessage(err: unknown, fallback: string): string {
   const data = (err as { response?: { data?: unknown } })?.response?.data;
 
@@ -38,12 +36,9 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Loading states — kept separate so each screen's button only
-  // shows a spinner for the request it actually triggered.
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  // Show/Hide Password States
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -60,8 +55,7 @@ export default function Login() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     if (isLoggingIn) return;
 
     setError("");
@@ -70,17 +64,21 @@ export default function Login() {
     try {
       const response = await api.post("/Auth/login", { username, password });
 
-      if (response.data.mustChangePassword) {
+      if (response?.data?.mustChangePassword) {
         setIsChangingPassword(true);
         return;
       }
 
-      localStorage.setItem("token", response.data.token);
-      localStorage.setItem("role", response.data.role);
-      if (response.data.userName) {
+      if (response?.data?.token) {
+        localStorage.setItem("token", response.data.token);
+      }
+      if (response?.data?.role) {
+        localStorage.setItem("role", response.data.role);
+      }
+      if (response?.data?.userName) {
         localStorage.setItem("userName", response.data.userName);
       }
-      if (response.data.employeeId) {
+      if (response?.data?.employeeId) {
         localStorage.setItem("employeeId", response.data.employeeId);
       }
       navigate("/dashboard");
@@ -91,8 +89,7 @@ export default function Login() {
     }
   };
 
-  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePasswordChangeSubmit = async () => {
     if (isUpdatingPassword) return;
 
     setError("");
@@ -120,12 +117,17 @@ export default function Login() {
         username,
         password: newPassword,
       });
-      localStorage.setItem("token", response.data.token);
-      localStorage.setItem("role", response.data.role);
-      if (response.data.userName) {
+
+      if (response?.data?.token) {
+        localStorage.setItem("token", response.data.token);
+      }
+      if (response?.data?.role) {
+        localStorage.setItem("role", response.data.role);
+      }
+      if (response?.data?.userName) {
         localStorage.setItem("userName", response.data.userName);
       }
-      if (response.data.employeeId) {
+      if (response?.data?.employeeId) {
         localStorage.setItem("employeeId", response.data.employeeId);
       }
       navigate("/dashboard");
@@ -145,19 +147,26 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-slate-50 p-4 antialiased sm:p-6">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs sm:p-10">
-        <div className="space-y-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-lg font-bold text-white shadow-xs">
-            F
+    <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6 bg-(--bg-main)">
+      <div className="w-full max-w-md space-y-6 rounded-3xl border border-(--border-color) bg-(--surface) p-6 shadow-xl sm:p-8 transition-all">
+        {/* Logo and Subtitle inside the block */}
+        <div className="flex flex-col items-center text-center space-y-2 pb-3 border-b border-slate-100">
+          <div className="w-40 h-16 sm:w-72 sm:h-28 flex items-center justify-center transition-all">
+            <FireflyLogo className="h-full w-full object-contain" />
           </div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">
-            Firefly Crafts HRIS
+          <p className="text-[10px] font-bold tracking-widest text-(--text-muted) uppercase">
+            Management Suite Portal
+          </p>
+        </div>
+
+        <div className="space-y-1 text-left">
+          <h2 className="text-lg font-bold text-(--text-main)">
+            {isChangingPassword ? "Security Update Required" : "Welcome Back"}
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-(--text-muted)">
             {isChangingPassword
-              ? "Security update required"
-              : "Sign in to your account"}
+              ? "Please create a new secure password before proceeding."
+              : "Sign in to your account to continue"}
           </p>
         </div>
 
@@ -165,7 +174,7 @@ export default function Login() {
           <div
             role="alert"
             aria-live="assertive"
-            className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center text-xs font-medium text-rose-700"
+            className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center text-xs font-medium text-rose-700"
           >
             {error}
           </div>
@@ -175,25 +184,33 @@ export default function Login() {
           <div
             role="status"
             aria-live="polite"
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-center text-xs font-medium text-amber-800"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-center text-xs font-medium text-amber-800"
           >
-            <AlertTriangle size={14} className="shrink-0" />
+            <AlertTriangle size={14} className="shrink-0 text-amber-600" />
             Caps Lock is on
           </div>
         )}
 
         {!isChangingPassword ? (
-          <form onSubmit={handleLogin} className="space-y-4" noValidate>
-            <fieldset disabled={isLoggingIn} className="space-y-4">
+          <div
+            className="space-y-4"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isBusy) {
+                e.preventDefault();
+                handleLogin();
+              }
+            }}
+          >
+            <div className="space-y-4">
               <div>
                 <label
                   htmlFor="username"
-                  className="mb-1 block text-xs font-medium text-slate-700"
+                  className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-(--text-muted)"
                 >
                   Username
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                     <User size={16} />
                   </span>
                   <input
@@ -204,12 +221,12 @@ export default function Login() {
                       setUsername(e.target.value);
                       if (error) setError("");
                     }}
+                    disabled={isLoggingIn}
                     autoComplete="username"
                     autoCapitalize="none"
                     autoFocus
-                    className="block w-full rounded-lg border border-slate-300 py-3 pl-9 pr-3 text-base focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400 sm:py-2.5 sm:text-sm"
+                    className="block w-full rounded-xl border border-(--border-color) bg-slate-50/50 py-3.5 pl-10 pr-4 text-sm text-(--text-main) placeholder-slate-400 transition-all focus:border-(--primary) focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-600/10 disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="Enter your username"
-                    required
                   />
                 </div>
               </div>
@@ -217,12 +234,12 @@ export default function Login() {
               <div>
                 <label
                   htmlFor="password"
-                  className="mb-1 block text-xs font-medium text-slate-700"
+                  className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-(--text-muted)"
                 >
                   Password
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                     <Lock size={16} />
                   </span>
                   <input
@@ -235,10 +252,10 @@ export default function Login() {
                     }}
                     onKeyUp={handleCapsLockCheck}
                     onKeyDown={handleCapsLockCheck}
+                    disabled={isLoggingIn}
                     autoComplete="current-password"
-                    className="block w-full rounded-lg border border-slate-300 py-3 pl-9 pr-10 text-base focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400 sm:py-2.5 sm:text-sm"
+                    className="block w-full rounded-xl border border-(--border-color) bg-slate-50/50 py-3.5 pl-10 pr-12 text-sm text-(--text-main) placeholder-slate-400 transition-all focus:border-(--primary) focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-600/10 disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="Enter your password"
-                    required
                   />
                   <button
                     type="button"
@@ -248,44 +265,47 @@ export default function Login() {
                       showPassword ? "Hide password" : "Show password"
                     }
                     tabIndex={-1}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-hidden disabled:pointer-events-none"
+                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-slate-600 focus:outline-none disabled:pointer-events-none cursor-pointer"
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
 
               <button
-                type="submit"
+                type="button"
+                onClick={handleLogin}
+                disabled={isLoggingIn}
                 aria-busy={isLoggingIn}
-                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-xs transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:py-2.5"
+                className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-(--primary) px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-blue-600/20 transition-all hover:bg-(--primary-hover) active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isLoggingIn && <Loader2 size={16} className="animate-spin" />}
+                {isLoggingIn && (
+                  <Loader2 size={16} className="animate-spin text-white" />
+                )}
                 {isLoggingIn ? "Signing in..." : "Sign In"}
               </button>
-            </fieldset>
-          </form>
-        ) : (
-          <form
-            onSubmit={handlePasswordChangeSubmit}
-            className="space-y-4"
-            noValidate
-          >
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              You are using a temporary password. Please create a new secure
-              password before proceeding.
             </div>
-
-            <fieldset disabled={isUpdatingPassword} className="space-y-4">
+          </div>
+        ) : (
+          <div
+            className="space-y-4"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isBusy) {
+                e.preventDefault();
+                handlePasswordChangeSubmit();
+              }
+            }}
+          >
+            <div className="space-y-4">
               <div>
                 <label
                   htmlFor="newPassword"
-                  className="mb-1 block text-xs font-medium text-slate-700"
+                  className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-(--text-muted)"
                 >
                   New Password
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                     <KeyRound size={16} />
                   </span>
                   <input
@@ -298,11 +318,11 @@ export default function Login() {
                     }}
                     onKeyUp={handleCapsLockCheck}
                     onKeyDown={handleCapsLockCheck}
+                    disabled={isUpdatingPassword}
                     autoComplete="new-password"
                     autoFocus
-                    className="block w-full rounded-lg border border-slate-300 py-3 pl-9 pr-10 text-base focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400 sm:py-2.5 sm:text-sm"
+                    className="block w-full rounded-xl border border-(--border-color) bg-slate-50/50 py-3.5 pl-10 pr-12 text-sm text-(--text-main) placeholder-slate-400 transition-all focus:border-(--primary) focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-600/10 disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="Enter new password"
-                    required
                   />
                   <button
                     type="button"
@@ -314,9 +334,9 @@ export default function Login() {
                         : "Show new password"
                     }
                     tabIndex={-1}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-hidden disabled:pointer-events-none"
+                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-slate-600 focus:outline-none disabled:pointer-events-none cursor-pointer"
                   >
-                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
@@ -324,12 +344,12 @@ export default function Login() {
               <div>
                 <label
                   htmlFor="confirmPassword"
-                  className="mb-1 block text-xs font-medium text-slate-700"
+                  className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-(--text-muted)"
                 >
                   Confirm New Password
                 </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                     <KeyRound size={16} />
                   </span>
                   <input
@@ -342,10 +362,10 @@ export default function Login() {
                     }}
                     onKeyUp={handleCapsLockCheck}
                     onKeyDown={handleCapsLockCheck}
+                    disabled={isUpdatingPassword}
                     autoComplete="new-password"
-                    className="block w-full rounded-lg border border-slate-300 py-3 pl-9 pr-10 text-base focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400 sm:py-2.5 sm:text-sm"
+                    className="block w-full rounded-xl border border-(--border-color) bg-slate-50/50 py-3.5 pl-10 pr-12 text-sm text-(--text-main) placeholder-slate-400 transition-all focus:border-(--primary) focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-600/10 disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="Confirm new password"
-                    required
                   />
                   <button
                     type="button"
@@ -357,24 +377,26 @@ export default function Login() {
                         : "Show confirmed password"
                     }
                     tabIndex={-1}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-hidden disabled:pointer-events-none"
+                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-slate-600 focus:outline-none disabled:pointer-events-none cursor-pointer"
                   >
                     {showConfirmPassword ? (
-                      <EyeOff size={16} />
+                      <EyeOff size={18} />
                     ) : (
-                      <Eye size={16} />
+                      <Eye size={18} />
                     )}
                   </button>
                 </div>
               </div>
 
               <button
-                type="submit"
+                type="button"
+                onClick={handlePasswordChangeSubmit}
+                disabled={isUpdatingPassword}
                 aria-busy={isUpdatingPassword}
-                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-xs transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:py-2.5"
+                className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-(--primary) px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-blue-600/20 transition-all hover:bg-(--primary-hover) active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isUpdatingPassword && (
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin text-white" />
                 )}
                 {isUpdatingPassword
                   ? "Updating password..."
@@ -384,13 +406,14 @@ export default function Login() {
               <button
                 type="button"
                 onClick={handleBackToLogin}
-                className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 disabled:pointer-events-none disabled:opacity-50"
+                disabled={isBusy}
+                className="flex w-full items-center justify-center gap-1.5 py-2 text-xs font-semibold text-(--text-muted) hover:text-(--primary) transition-colors disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
               >
-                <ArrowLeft size={13} />
+                <ArrowLeft size={14} />
                 Back to sign in
               </button>
-            </fieldset>
-          </form>
+            </div>
+          </div>
         )}
       </div>
     </div>

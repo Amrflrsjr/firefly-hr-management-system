@@ -195,7 +195,7 @@ export default function CashAdvances() {
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+            <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
               <DollarSign size={20} />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -208,7 +208,7 @@ export default function CashAdvances() {
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center"
+          className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center"
         >
           <Plus size={16} />{" "}
           {role === "Admin" ? "Add Advance Record" : "Request Advance"}
@@ -234,7 +234,7 @@ export default function CashAdvances() {
                 <td colSpan={6} className="py-12 text-center text-slate-400">
                   <Loader2
                     size={24}
-                    className="animate-spin text-blue-600 mx-auto mb-2"
+                    className="animate-spin text-amber-600 mx-auto mb-2"
                   />
                   <p className="text-xs font-semibold text-slate-500">
                     Loading cash advances...
@@ -247,13 +247,13 @@ export default function CashAdvances() {
                   key={adv.id}
                   className="hover:bg-slate-50/60 transition-colors"
                 >
-                  <td className="py-4 px-5 font-bold text-slate-900">
+                  <td className="py-4 px-5 font-mono text-xs font-bold">
                     {getEmployeeName(adv)}
                   </td>
                   <td className="py-4 px-5 font-mono text-xs font-bold text-slate-700">
                     PHP {formatCurrency(adv.cashAdvanceAmount)}
                   </td>
-                  <td className="py-4 px-5 font-mono text-xs font-bold text-blue-600">
+                  <td className="py-4 px-5 font-mono text-xs font-bold">
                     PHP{" "}
                     {formatCurrency(
                       adv.remainingBalance ?? adv.cashAdvanceAmount,
@@ -267,7 +267,7 @@ export default function CashAdvances() {
                       className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
                         adv.status === "Paid"
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                          : "bg-blue-50 text-blue-700 border border-blue-200/60"
+                          : "bg-amber-50 border border-amber-200/60"
                       }`}
                     >
                       {adv.status}
@@ -302,7 +302,10 @@ export default function CashAdvances() {
       <div className="grid grid-cols-1 gap-3 md:hidden">
         {loading ? (
           <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
-            <Loader2 size={24} className="animate-spin text-blue-600 mx-auto" />
+            <Loader2
+              size={24}
+              className="animate-spin text-amber-600 mx-auto"
+            />
             <p className="text-xs font-semibold text-slate-500">
               Loading cards...
             </p>
@@ -322,7 +325,7 @@ export default function CashAdvances() {
                     className={`mt-1 inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
                       adv.status === "Paid"
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : "bg-blue-50 text-blue-700 border border-blue-200"
+                        : "bg-amber-50 border border-amber-200"
                     }`}
                   >
                     {adv.status}
@@ -348,7 +351,7 @@ export default function CashAdvances() {
                   <span className="text-slate-400 block text-[10px] uppercase font-bold">
                     Balance
                   </span>
-                  <span className="font-mono font-bold text-blue-600">
+                  <span className="font-mono font-bold">
                     PHP{" "}
                     {formatCurrency(
                       adv.remainingBalance ?? adv.cashAdvanceAmount,
@@ -431,7 +434,7 @@ export default function CashAdvances() {
                       })
                     }
                     disabled={isSubmitting}
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary)"
                     required
                   >
                     {employees.map((emp) => (
@@ -457,7 +460,7 @@ export default function CashAdvances() {
                     })
                   }
                   disabled={isSubmitting}
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary)"
                   min={100}
                   step={50}
                   required
@@ -477,7 +480,7 @@ export default function CashAdvances() {
                     })
                   }
                   disabled={isSubmitting}
-                  className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary)"
                 >
                   <option value="Monthly">Monthly</option>
                   <option value="Per Pay Period">Per Pay Period</option>
@@ -496,7 +499,7 @@ export default function CashAdvances() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-sm active:scale-[0.98]"
+                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-sm active:scale-[0.98]"
                 >
                   {isSubmitting ? (
                     <Loader2 size={14} className="animate-spin" />

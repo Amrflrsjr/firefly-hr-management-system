@@ -124,7 +124,7 @@ export default function History() {
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+            <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
               <FileText size={20} />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -145,7 +145,7 @@ export default function History() {
                 setSelectedEmployee(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white cursor-pointer"
+              className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
             >
               {employees.map((emp) => (
                 <option key={emp.id} value={String(emp.id)}>
@@ -178,7 +178,7 @@ export default function History() {
                 <td colSpan={4} className="py-12 text-center text-slate-400">
                   <Loader2
                     size={24}
-                    className="animate-spin text-blue-600 mx-auto mb-2"
+                    className="animate-spin text-amber-600 mx-auto mb-2"
                   />
                   <p className="text-xs font-semibold text-slate-500">
                     Loading history records...
@@ -197,13 +197,13 @@ export default function History() {
                   <td className="py-4 px-5 text-slate-600 text-xs font-medium">
                     {new Date(item.payPeriodEnd).toLocaleDateString()}
                   </td>
-                  <td className="py-4 px-5 text-right font-mono font-bold text-blue-600">
+                  <td className="py-4 px-5 text-right font-mono font-bold text-amber-800">
                     PHP {item.netReceivable.toFixed(2)}
                   </td>
                   <td className="py-4 px-5 text-right space-x-1">
                     <button
                       onClick={() => setViewingPaySlip(item)}
-                      className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                      className="text-slate-400 hover:text-amber-600 p-1.5 rounded-lg hover:bg-amber-50 transition-colors"
                       title="View Details"
                     >
                       <Eye size={16} />

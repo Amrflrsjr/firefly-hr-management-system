@@ -368,7 +368,7 @@ export default function Timesheet() {
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+            <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
               <Clock size={20} />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -393,7 +393,7 @@ export default function Timesheet() {
                   setRecordsPage(1);
                   setRequestsPage(1);
                 }}
-                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white disabled:opacity-50"
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50"
               >
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
@@ -411,7 +411,7 @@ export default function Timesheet() {
           <button
             onClick={handleExportExcel}
             disabled={isExporting || loadingData}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
+            className="flex items-center gap-2 bg-green-900 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
           >
             {isExporting ? (
               <>
@@ -429,7 +429,7 @@ export default function Timesheet() {
           <button
             onClick={() => setShowManualModal(true)}
             disabled={loadingData}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
+            className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
           >
             <PlusCircle size={15} />
             {role === "Admin" ? "Add Record" : "File Missed Attendance"}
@@ -446,7 +446,7 @@ export default function Timesheet() {
           }}
           className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === "records"
-              ? "border-blue-600 text-blue-600"
+              ? "border-(--primary) text-amber-900"
               : "border-transparent text-slate-400 hover:text-slate-700"
           }`}
         >
@@ -459,7 +459,7 @@ export default function Timesheet() {
           }}
           className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === "requests"
-              ? "border-blue-600 text-blue-600"
+              ? "border-(--primary) text-amber-900"
               : "border-transparent text-slate-400 hover:text-slate-700"
           }`}
         >
@@ -497,7 +497,7 @@ export default function Timesheet() {
                       >
                         <Loader2
                           size={24}
-                          className="animate-spin text-blue-600 mx-auto mb-2"
+                          className="animate-spin text-amber-600 mx-auto mb-2"
                         />
                         <p className="text-xs font-semibold text-slate-500">
                           Loading time records...
@@ -816,7 +816,7 @@ export default function Timesheet() {
                 <select
                   value={manualType}
                   onChange={(e) => setManualType(e.target.value)}
-                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-(--primary)"
                 >
                   <option value="IN">Time IN</option>
                   <option value="OUT">Time OUT</option>
@@ -831,7 +831,7 @@ export default function Timesheet() {
                   value={manualDate}
                   onChange={(e) => setManualDate(e.target.value)}
                   required
-                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary)"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -844,7 +844,7 @@ export default function Timesheet() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-sm active:scale-[0.98]"
+                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-sm active:scale-[0.98]"
                 >
                   Submit
                 </button>

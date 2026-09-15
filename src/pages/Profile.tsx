@@ -14,6 +14,7 @@ import {
   Briefcase,
   IdCard,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import Toast from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
@@ -175,7 +176,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
         <p className="text-xs font-semibold text-slate-500">
           Loading profile details...
         </p>
@@ -188,7 +189,7 @@ export default function Profile() {
     : "AD";
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 pb-24">
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 pb-16">
       {toast && (
         <Toast
           message={toast.message}
@@ -216,7 +217,7 @@ export default function Profile() {
       {/* Hero Profile Identity Header */}
       <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 text-white font-bold text-xl sm:text-2xl flex items-center justify-center shadow-md shrink-0">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-(--primary) text-slate-950 font-bold text-xl sm:text-2xl flex items-center justify-center shadow-md shrink-0">
             {userInitials}
           </div>
           <div className="space-y-1">
@@ -226,7 +227,7 @@ export default function Profile() {
                   ? "System Administrator"
                   : `${employee?.firstName} ${employee?.lastName}`}
               </h1>
-              <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded-md border border-blue-200/60 uppercase">
+              <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-800 font-bold rounded-md border border-amber-200/60 uppercase">
                 {role}
               </span>
             </div>
@@ -259,7 +260,7 @@ export default function Profile() {
             onClick={() => setActiveTab("info")}
             className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "info"
-                ? "border-blue-600 text-blue-600"
+                ? "border-(--primary) text-amber-900 font-extrabold"
                 : "border-transparent text-slate-400 hover:text-slate-700"
             }`}
           >
@@ -270,7 +271,7 @@ export default function Profile() {
             onClick={() => setActiveTab("security")}
             className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "security"
-                ? "border-blue-600 text-blue-600"
+                ? "border-(--primary) text-amber-900 font-extrabold"
                 : "border-transparent text-slate-400 hover:text-slate-700"
             }`}
           >
@@ -286,7 +287,7 @@ export default function Profile() {
           className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5"
         >
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
               <KeyRound size={18} />
             </div>
             <h2 className="text-sm font-bold text-slate-900">
@@ -305,7 +306,7 @@ export default function Profile() {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   disabled={isSubmitting}
-                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                   required
                 />
                 <button
@@ -332,7 +333,7 @@ export default function Profile() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   disabled={isSubmitting}
-                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                   required
                 />
                 <button
@@ -355,7 +356,7 @@ export default function Profile() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isSubmitting}
-                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                   required
                 />
                 <button
@@ -397,7 +398,7 @@ export default function Profile() {
                 {/* Employment Details */}
                 <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                    <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                       <IdCard size={18} />
                     </div>
                     <h2 className="text-sm font-bold text-slate-900">
@@ -416,7 +417,7 @@ export default function Profile() {
                         value={employee.username || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         required
                       />
                     </div>
@@ -431,7 +432,7 @@ export default function Profile() {
                         value={employee.firstName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         required
                       />
                     </div>
@@ -446,7 +447,7 @@ export default function Profile() {
                         value={employee.lastName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         required
                       />
                     </div>
@@ -461,7 +462,7 @@ export default function Profile() {
                         value={employee.jobTitle || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </div>
                   </div>
@@ -470,7 +471,7 @@ export default function Profile() {
                 {/* Contact & Address */}
                 <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                    <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                       <Phone size={18} />
                     </div>
                     <h2 className="text-sm font-bold text-slate-900">
@@ -490,7 +491,7 @@ export default function Profile() {
                           value={employee.contactNumber || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         />
                         <Phone
                           size={15}
@@ -510,7 +511,7 @@ export default function Profile() {
                           value={employee.personalEmailAddress || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         />
                         <Mail
                           size={15}
@@ -530,7 +531,7 @@ export default function Profile() {
                           value={employee.currentAddress || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         />
                         <MapPin
                           size={15}
@@ -563,7 +564,7 @@ export default function Profile() {
                         value={employee.emergencyContactName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </div>
 
@@ -577,7 +578,7 @@ export default function Profile() {
                         value={employee.emergencyContactNumber || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </div>
 
@@ -591,7 +592,7 @@ export default function Profile() {
                         value={employee.relationToEmployee || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </div>
 
@@ -605,36 +606,47 @@ export default function Profile() {
                         value={employee.emergencyContactAddress || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Floating Mobile/Desktop Sticky Save Bar */}
-                {hasChanges && (
-                  <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-8 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center justify-between gap-4 border border-slate-800 animate-slideUp">
-                    <p className="text-xs font-semibold">
-                      Unsaved changes detected
-                    </p>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="py-2 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 size={14} className="animate-spin" />{" "}
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save size={14} /> Save Changes
-                        </>
-                      )}
-                    </button>
+                {/* Bottom Action Footer */}
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-xs text-amber-800 font-semibold">
+                    {hasChanges ? (
+                      <>
+                        <AlertCircle
+                          size={16}
+                          className="text-amber-600 shrink-0"
+                        />
+                        <span>You have unsaved changes on your profile.</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-400 font-medium">
+                        All changes saved.
+                      </span>
+                    )}
                   </div>
-                )}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !hasChanges}
+                    className="w-full sm:w-auto py-2.5 px-6 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" /> Saving
+                        Changes...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={15} /> Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
               </form>
             ) : (
               /* Account Security Tab */
@@ -643,7 +655,7 @@ export default function Profile() {
                 className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5"
               >
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                  <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                     <Lock size={18} />
                   </div>
                   <div>
@@ -667,7 +679,7 @@ export default function Profile() {
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         required
                       />
                       <button
@@ -696,7 +708,7 @@ export default function Profile() {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         required
                       />
                       <button
@@ -723,7 +735,7 @@ export default function Profile() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
                         required
                       />
                       <button
@@ -747,7 +759,7 @@ export default function Profile() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="w-full sm:w-auto py-2.5 px-6 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (
                       <>

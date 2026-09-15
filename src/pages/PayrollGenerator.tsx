@@ -248,7 +248,7 @@ export default function PayrollGenerator() {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
                 <Calculator size={20} />
               </div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -273,7 +273,7 @@ export default function PayrollGenerator() {
               value={selectedEmployee ?? ""}
               onChange={(e) => handleEmployeeChange(Number(e.target.value))}
               disabled={isComputing}
-              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 cursor-pointer"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 cursor-pointer"
             >
               {employees.length === 0 && (
                 <option value="">No employees found</option>
@@ -297,7 +297,7 @@ export default function PayrollGenerator() {
                 handlePayPeriodChange(e.target.value as "15th" | "30th")
               }
               disabled={isComputing}
-              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-50 cursor-pointer"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 cursor-pointer"
             >
               <option value="15th">15th Pay Period (29th/30th - 13th)</option>
               <option value="30th">
@@ -316,11 +316,11 @@ export default function PayrollGenerator() {
             <button
               onClick={fetchCalculatedParams}
               disabled={loadingParams || isComputing}
-              className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 hover:underline cursor-pointer disabled:opacity-50"
+              className="text-xs text-amber-700 hover:text-amber-800 font-semibold flex items-center gap-1 hover:underline cursor-pointer disabled:opacity-50"
             >
               <RefreshCw
                 size={13}
-                className={loadingParams ? "animate-spin text-blue-600" : ""}
+                className={loadingParams ? "animate-spin text-amber-600" : ""}
               />
               Recalculate System Parameters
             </button>
@@ -342,7 +342,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -361,7 +361,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -380,7 +380,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -399,7 +399,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -418,7 +418,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -437,7 +437,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -456,7 +456,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -475,7 +475,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
 
@@ -494,7 +494,7 @@ export default function PayrollGenerator() {
                   )
                 }
                 disabled={isComputing}
-                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100"
+                className="w-full bg-white border border-slate-300 p-2 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-100"
               />
             </div>
           </div>
@@ -503,7 +503,7 @@ export default function PayrollGenerator() {
         <button
           onClick={() => setShowConfirmModal(true)}
           disabled={isComputing || !selectedEmployee}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-6 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isComputing ? (
             <>

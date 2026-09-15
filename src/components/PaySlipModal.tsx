@@ -94,7 +94,7 @@ export default function PaySlipModal({
           <div className="flex justify-between items-start border-b border-slate-200 pb-4">
             <div className="space-y-1">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
-                <Building2 size={20} className="text-blue-600 shrink-0" />{" "}
+                <Building2 size={20} className="text-amber-800 shrink-0" />{" "}
                 Firefly Crafts PH
               </h2>
               <p className="text-xs font-medium text-slate-500">
@@ -168,7 +168,7 @@ export default function PaySlipModal({
                 </div>
                 <div className="flex justify-between font-bold border-t border-slate-200 pt-2 text-slate-900">
                   <span>Gross Earnings:</span>
-                  <span className="font-mono text-blue-600">
+                  <span className="font-mono text-amber-800">
                     PHP {formatCurrency(paySlip.grossEarnings)}
                   </span>
                 </div>
@@ -220,11 +220,11 @@ export default function PaySlipModal({
           </div>
 
           {/* Net Receivable Banner */}
-          <div className="bg-blue-50/80 p-4 rounded-2xl flex justify-between items-center border border-blue-200/60">
-            <span className="font-bold text-blue-900 text-xs uppercase tracking-wider">
+          <div className="bg-amber-50/80 p-4 rounded-2xl flex justify-between items-center border border-amber-200/60">
+            <span className="font-bold text-amber-900 text-xs uppercase tracking-wider">
               Net Receivable:
             </span>
-            <span className="text-xl font-bold font-mono text-blue-600">
+            <span className="text-xl font-bold font-mono text-amber-800">
               PHP {formatCurrency(paySlip.netReceivable)}
             </span>
           </div>
@@ -235,7 +235,7 @@ export default function PaySlipModal({
           <button
             onClick={handleDownloadImage}
             disabled={isDownloading}
-            className="flex-1 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl font-semibold text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
+            className="flex-1 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 py-3 rounded-xl font-semibold text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
           >
             {isDownloading ? (
               <>

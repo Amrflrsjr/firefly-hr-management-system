@@ -6,9 +6,10 @@
   --text-main: #0f172a; /* Slate 900 */
   --text-muted: #64748b; /* Slate 500 */
   --border-color: #e2e8f0; /* Slate 200 */
-  --primary: #2563eb; /* Professional Blue */
-  --primary-hover: #1d4ed8;
-  --accent: #0ea5e9; /* Sky blue accent */
+  --primary: #f9b53f; /* Primary Brand Yellow */
+  --primary-hover: #f4d158; /* Lighter Accent Hover */
+  --accent: #ffcb62; /* Soft Golden Accent */
+  --brand-light: #ffcb62;
 }
 
 body {

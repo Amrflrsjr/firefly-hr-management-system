@@ -16,9 +16,9 @@ export default function Toast({
   const isSuccess = type === "success";
 
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-sm sm:max-w-md">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-6 z-50 w-11/12 max-w-sm sm:max-w-md animate-in fade-in slide-in-from-top-4 duration-200">
       <div
-        className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border shadow-lg transition-all text-xs sm:text-sm font-medium ${
+        className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border shadow-xl transition-all text-xs sm:text-sm font-medium ${
           isSuccess
             ? "bg-emerald-50 border-emerald-200 text-emerald-900"
             : "bg-rose-50 border-rose-200 text-rose-900"

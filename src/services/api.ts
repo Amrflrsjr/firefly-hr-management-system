@@ -17,7 +17,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url ?? "";
+
+    const isAuthRoute =
+      requestUrl.includes("/Auth/login") ||
+      requestUrl.includes("/Auth/change-password");
+
+    if (error.response?.status === 401 && !isAuthRoute) {
       localStorage.removeItem("token");
       localStorage.removeItem("role");
       localStorage.removeItem("employeeId");

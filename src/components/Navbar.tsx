@@ -15,6 +15,7 @@ import {
   ChevronRight,
   User,
 } from "lucide-react";
+import logo from "../assets/Firefly Logo - No BG.png";
 
 interface NavItem {
   to: string;
@@ -97,18 +98,18 @@ export default function Navbar() {
             onClick={() => isMobile && setIsOpen(false)}
             className={`flex items-center justify-between px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
               active
-                ? "bg-blue-600 text-white shadow-xs font-semibold"
+                ? "bg-(--primary) text-slate-950 shadow-xs font-bold"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             }`}
           >
             <div className="flex items-center gap-3">
               <Icon
                 size={18}
-                className={active ? "text-white" : "text-slate-400"}
+                className={active ? "text-slate-950" : "text-slate-400"}
               />
               <span>{link.label}</span>
             </div>
-            {active && <ChevronRight size={14} className="text-white/70" />}
+            {active && <ChevronRight size={14} className="text-slate-950/70" />}
           </Link>
         );
       })}
@@ -118,17 +119,16 @@ export default function Navbar() {
   return (
     <>
       {/* Mobile Top Bar */}
-      <div className="md:hidden bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-3 flex justify-between items-center shadow-2xs">
+      <div className="md:hidden bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-2.5 flex justify-between items-center shadow-2xs">
         <div
-          className="flex items-center gap-2.5 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer py-0.5"
           onClick={() => navigate("/dashboard")}
         >
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-xs">
-            F
-          </div>
-          <span className="font-semibold text-slate-900 tracking-tight text-base">
-            Firefly HRIS
-          </span>
+          <img
+            src={logo}
+            alt="Firefly Logo"
+            className="h-9 w-auto object-contain"
+          />
         </div>
         <button
           onClick={() => setIsOpen(true)}
@@ -160,13 +160,12 @@ export default function Navbar() {
           }`}
         >
           <div className="flex justify-between items-center pb-4 mb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-xs">
-                F
-              </div>
-              <span className="font-semibold text-slate-900 text-sm">
-                Firefly HRIS
-              </span>
+            <div className="flex items-center">
+              <img
+                src={logo}
+                alt="Firefly Logo"
+                className="h-10 w-auto object-contain"
+              />
             </div>
             <button
               onClick={() => setIsOpen(false)}
@@ -204,16 +203,20 @@ export default function Navbar() {
       {/* Desktop Vertical Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r border-slate-200 bg-white h-screen sticky top-0 shrink-0">
         {/* Brand Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold shadow-xs text-base">
-            F
+        <div className="p-4 border-b border-slate-100 flex flex-col items-center justify-center text-center space-y-1">
+          <div
+            className="w-full h-16 flex items-center justify-center cursor-pointer"
+            onClick={() => navigate("/dashboard")}
+          >
+            <img
+              src={logo}
+              alt="Firefly Logo"
+              className="h-full w-auto object-contain"
+            />
           </div>
-          <div>
-            <h2 className="font-bold text-slate-900 tracking-tight text-sm">
-              Firefly HRIS
-            </h2>
-            <p className="text-[11px] text-slate-400">Management Suite</p>
-          </div>
+          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+            Management Suite
+          </p>
         </div>
 
         {/* Grouped Navigation Links */}
