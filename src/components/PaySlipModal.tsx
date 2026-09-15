@@ -19,6 +19,9 @@ export interface PaySlipData {
   absentDeduction: number;
   cashAdvanceDeduction: number;
   governmentContributions: number;
+  sssDeduction?: number;
+  philHealthDeduction?: number;
+  pagIbigDeduction?: number;
   totalDeductions: number;
   netReceivable: number;
 }
@@ -203,12 +206,41 @@ export default function PaySlipModal({
                     PHP {formatCurrency(paySlip.cashAdvanceDeduction)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Government Benefits:</span>
-                  <span className="font-mono font-bold text-slate-900">
-                    PHP {formatCurrency(paySlip.governmentContributions)}
-                  </span>
+
+                {/* Government Contributions Breakdown */}
+                <div className="space-y-1 pt-1 border-t border-slate-200/60">
+                  <div className="flex justify-between font-semibold text-slate-700">
+                    <span>Government Benefits:</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      PHP {formatCurrency(paySlip.governmentContributions)}
+                    </span>
+                  </div>
+                  {(paySlip.sssDeduction !== undefined ||
+                    paySlip.philHealthDeduction !== undefined ||
+                    paySlip.pagIbigDeduction !== undefined) && (
+                    <div className="pl-3 space-y-1 text-[11px] text-slate-500 border-l-2 border-slate-200 my-1">
+                      <div className="flex justify-between">
+                        <span>• SSS:</span>
+                        <span className="font-mono">
+                          PHP {formatCurrency(paySlip.sssDeduction)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>• PhilHealth:</span>
+                        <span className="font-mono">
+                          PHP {formatCurrency(paySlip.philHealthDeduction)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>• Pag-IBIG:</span>
+                        <span className="font-mono">
+                          PHP {formatCurrency(paySlip.pagIbigDeduction)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
                 <div className="flex justify-between font-bold border-t border-slate-200 pt-2 text-slate-900">
                   <span>Total Deductions:</span>
                   <span className="font-mono text-rose-600">

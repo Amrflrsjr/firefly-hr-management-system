@@ -40,6 +40,12 @@ interface PayrollResult {
   undertimeDeduction: number;
   absentDeduction: number;
   cashAdvanceDeduction: number;
+
+  // Add these new breakdown fields
+  sssDeduction: number;
+  philHealthDeduction: number;
+  pagIbigDeduction: number;
+
   governmentContributions: number;
   totalDeductions: number;
   netReceivable: number;
@@ -201,6 +207,7 @@ export default function PayrollGenerator() {
       const data: PayrollResult = res.data;
 
       // Map API Response to PaySlipData format for PaySlipModal
+      // Map API Response to PaySlipData format for PaySlipModal
       const formattedPaySlip: PaySlipData = {
         id: Date.now(),
         payPeriod: payPeriodType === "15th" ? "15th Cutoff" : "30th Cutoff",
@@ -217,6 +224,12 @@ export default function PayrollGenerator() {
         undertimeDeduction: data.undertimeDeduction,
         absentDeduction: data.absentDeduction,
         cashAdvanceDeduction: data.cashAdvanceDeduction,
+
+        // Map individual deduction components here
+        sssDeduction: data.sssDeduction,
+        philHealthDeduction: data.philHealthDeduction,
+        pagIbigDeduction: data.pagIbigDeduction,
+
         governmentContributions: data.governmentContributions,
         totalDeductions: data.totalDeductions,
         netReceivable: data.netReceivable,

@@ -13,11 +13,13 @@ import {
   UserCheck,
   User,
   Eye,
+  Edit3,
   IdCard,
   Building2,
   Briefcase,
   DollarSign,
   Wallet,
+  Receipt,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -34,7 +36,9 @@ interface Employee {
   employmentType: string;
   officeType: string;
   dailySalary: number;
-  monthlyAllowance: number;
+  dailyAllowance: number;
+  hasGovernmentDeductions: boolean;
+  deductionType: string;
   isAdmin: boolean;
 }
 
@@ -52,6 +56,9 @@ export default function EmployeeManagement() {
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editEmployeeData, setEditEmployeeData] = useState<Employee | null>(
+    null,
+  );
   const [viewEmployee, setViewEmployee] = useState<Employee | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [toast, setToast] = useState<{
@@ -69,7 +76,8 @@ export default function EmployeeManagement() {
     employmentType: "Regular",
     officeType: "Admin",
     dailySalary: 600,
-    monthlyAllowance: 1000,
+    dailyAllowance: 100,
+    hasGovernmentDeductions: true,
     deductionType: "Per Pay Period",
     isAdmin: false,
   });
@@ -140,7 +148,8 @@ export default function EmployeeManagement() {
         employmentType: "Regular",
         officeType: "Admin",
         dailySalary: 600,
-        monthlyAllowance: 1000,
+        dailyAllowance: 100,
+        hasGovernmentDeductions: true,
         deductionType: "Per Pay Period",
         isAdmin: false,
       });
@@ -148,6 +157,22 @@ export default function EmployeeManagement() {
       showToast("Successfully added new employee.");
     } catch {
       showToast("Failed to create employee.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editEmployeeData) return;
+    setIsSubmitting(true);
+    try {
+      await api.put(`/Employees/${editEmployeeData.id}`, editEmployeeData);
+      setEditEmployeeData(null);
+      await loadEmployees();
+      showToast("Successfully updated employee record.");
+    } catch {
+      showToast("Failed to update employee record.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -371,6 +396,13 @@ export default function EmployeeManagement() {
                           <Eye size={16} />
                         </button>
                         <button
+                          onClick={() => setEditEmployeeData(emp)}
+                          className="text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
+                          title="Edit Profile"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
                           onClick={() => setDeleteId(emp.id)}
                           className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Delete Record"
@@ -442,6 +474,12 @@ export default function EmployeeManagement() {
                     className="text-slate-400 p-1.5 rounded-lg hover:bg-amber-50"
                   >
                     <Eye size={16} />
+                  </button>
+                  <button
+                    onClick={() => setEditEmployeeData(emp)}
+                    className="text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                  >
+                    <Edit3 size={16} />
                   </button>
                   <button
                     onClick={() => setDeleteId(emp.id)}
@@ -589,10 +627,21 @@ export default function EmployeeManagement() {
 
               <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Wallet size={12} /> Monthly Allowance
+                  <Wallet size={12} /> Daily Allowance
                 </span>
                 <p className="font-mono font-bold text-slate-900">
-                  PHP {viewEmployee.monthlyAllowance?.toFixed(2) || "1,000.00"}
+                  PHP {viewEmployee.dailyAllowance?.toFixed(2) || "0.00"}
+                </p>
+              </div>
+
+              <div className="col-span-2 bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                  <Receipt size={12} /> Gov Deductions & Type
+                </span>
+                <p className="font-semibold text-slate-800">
+                  {viewEmployee.hasGovernmentDeductions
+                    ? `Enabled (${viewEmployee.deductionType})`
+                    : "Disabled"}
                 </p>
               </div>
             </div>
@@ -614,15 +663,278 @@ export default function EmployeeManagement() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end pt-2 border-t border-slate-100">
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const empToEdit = viewEmployee;
+                  setViewEmployee(null);
+                  setEditEmployeeData(empToEdit);
+                }}
+                className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Edit3 size={14} /> Edit Profile
+              </button>
               <button
                 type="button"
                 onClick={() => setViewEmployee(null)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
               >
-                Close Profile
+                Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EMPLOYEE MODAL */}
+      {editEmployeeData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-lg w-full space-y-5 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-800">
+                  <Edit3 size={18} />
+                </div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Edit Employee Record
+                </h2>
+              </div>
+              <button
+                onClick={() => setEditEmployeeData(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editEmployeeData.firstName}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        firstName: e.target.value,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editEmployeeData.lastName}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        lastName: e.target.value,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Job Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editEmployeeData.jobTitle}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        jobTitle: e.target.value,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Office Type
+                  </label>
+                  <select
+                    value={editEmployeeData.officeType}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        officeType: e.target.value,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                  >
+                    <option value="Admin">Admin</option>
+                    <option value="Production">Production</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Daily Salary (PHP)
+                  </label>
+                  <input
+                    type="number"
+                    step="50"
+                    value={editEmployeeData.dailySalary}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        dailySalary: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Daily Allowance (PHP)
+                  </label>
+                  <input
+                    type="number"
+                    step="10"
+                    value={editEmployeeData.dailyAllowance}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        dailyAllowance: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Government Deductions Settings */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/60">
+                  <input
+                    type="checkbox"
+                    id="editHasGovToggle"
+                    checked={editEmployeeData.hasGovernmentDeductions}
+                    onChange={(e) =>
+                      setEditEmployeeData({
+                        ...editEmployeeData,
+                        hasGovernmentDeductions: e.target.checked,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
+                  />
+                  <label
+                    htmlFor="editHasGovToggle"
+                    className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
+                  >
+                    <span className="font-bold text-slate-900 block">
+                      Enable Government Contributions (Eligible)
+                    </span>
+                    When enabled, SSS, PhilHealth, and Pag-IBIG will be deducted
+                    automatically during payroll calculations.
+                  </label>
+                </div>
+
+                {editEmployeeData.hasGovernmentDeductions && (
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Deduction Schedule Type
+                    </label>
+                    <select
+                      value={editEmployeeData.deductionType}
+                      onChange={(e) =>
+                        setEditEmployeeData({
+                          ...editEmployeeData,
+                          deductionType: e.target.value,
+                        })
+                      }
+                      disabled={isSubmitting}
+                      className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    >
+                      <option value="Per Pay Period">
+                        Per Pay Period (Split per cutoff)
+                      </option>
+                      <option value="Monthly">
+                        Full Monthly (Deducted once)
+                      </option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Admin Access Toggle Checkbox */}
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <input
+                  type="checkbox"
+                  id="editIsAdminToggle"
+                  checked={editEmployeeData.isAdmin}
+                  onChange={(e) =>
+                    setEditEmployeeData({
+                      ...editEmployeeData,
+                      isAdmin: e.target.checked,
+                    })
+                  }
+                  disabled={isSubmitting}
+                  className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
+                />
+                <label
+                  htmlFor="editIsAdminToggle"
+                  className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
+                >
+                  <span className="font-bold text-slate-900 block">
+                    Grant Administrator Privileges
+                  </span>
+                  Allows staff member to manage payroll, approve leave/OT
+                  requests, and modify directory records.
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditEmployeeData(null)}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> Updating...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -779,16 +1091,16 @@ export default function EmployeeManagement() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Monthly Allowance (PHP)
+                    Daily Allowance (PHP)
                   </label>
                   <input
                     type="number"
-                    step="100"
-                    value={formData.monthlyAllowance}
+                    step="10"
+                    value={formData.dailyAllowance}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        monthlyAllowance: parseFloat(e.target.value) || 0,
+                        dailyAllowance: parseFloat(e.target.value) || 0,
                       })
                     }
                     disabled={isSubmitting}
@@ -798,8 +1110,63 @@ export default function EmployeeManagement() {
                 </div>
               </div>
 
+              {/* Government Deductions Settings */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/60">
+                  <input
+                    type="checkbox"
+                    id="hasGovToggle"
+                    checked={formData.hasGovernmentDeductions}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        hasGovernmentDeductions: e.target.checked,
+                      })
+                    }
+                    disabled={isSubmitting}
+                    className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
+                  />
+                  <label
+                    htmlFor="hasGovToggle"
+                    className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
+                  >
+                    <span className="font-bold text-slate-900 block">
+                      Enable Government Contributions (Eligible)
+                    </span>
+                    Automatically deduct SSS, PhilHealth, and Pag-IBIG during
+                    payroll computations.
+                  </label>
+                </div>
+
+                {formData.hasGovernmentDeductions && (
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Deduction Schedule Type
+                    </label>
+                    <select
+                      value={formData.deductionType}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          deductionType: e.target.value,
+                        })
+                      }
+                      disabled={isSubmitting}
+                      className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                    >
+                      <option value="Per Pay Period">
+                        Per Pay Period (Split per cutoff)
+                      </option>
+                      <option value="Monthly">
+                        Full Monthly (Deducted once)
+                      </option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
               {/* Admin Access Toggle Checkbox */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/60">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                 <input
                   type="checkbox"
                   id="isAdminToggle"
