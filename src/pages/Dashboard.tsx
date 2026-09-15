@@ -167,8 +167,6 @@ export default function Dashboard() {
     }, 3000);
   };
 
-  // Single source of truth for manual/silent data refreshes.
-  // `silent` skips the full skeleton and shows a small spinner instead.
   const refreshDashboardData = useCallback(
     async (silent = false) => {
       if (isAdmin) return;
@@ -195,7 +193,6 @@ export default function Dashboard() {
     [employeeId, isAdmin],
   );
 
-  // Initial fetch on component mount
   useEffect(() => {
     if (isAdmin) return;
 
@@ -227,18 +224,54 @@ export default function Dashboard() {
     };
   }, [employeeId, isAdmin]);
 
-  // Helper function to format UTC ISO dates into local 12-hour time
-  const formatLocalTime = (isoString: string | null) => {
-    if (!isoString || isoString === "00:00") return "00:00";
+  // Converts backend UTC timestamps or time strings to Philippine Standard Time (PST)
+  const formatLocalTime = (timeStr: string | null) => {
+    if (!timeStr || timeStr === "00:00") return "00:00";
 
-    // Parse date string and format to Asia/Manila (PST)
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return isoString;
+    // 1. If standard ISO string (e.g., 2026-09-15T08:34:00Z)
+    let date = new Date(timeStr);
 
+    // 2. If backend returns raw formatted time (e.g., "08:34 AM" or "08:34:00")
+    if (isNaN(date.getTime())) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      date = new Date(`${todayStr}T${timeStr.trim()}Z`);
+
+      // 3. Manual fallback parser for 12-hour/24-hour time strings
+      if (isNaN(date.getTime())) {
+        const match = timeStr
+          .trim()
+          .match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const modifier = match[3]?.toUpperCase();
+
+          if (modifier === "PM" && hours < 12) hours += 12;
+          if (modifier === "AM" && hours === 12) hours = 0;
+
+          const now = new Date();
+          date = new Date(
+            Date.UTC(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              hours,
+              minutes,
+              0,
+            ),
+          );
+        }
+      }
+    }
+
+    if (isNaN(date.getTime())) return timeStr;
+
+    // Convert to Philippine Standard Time (PST / UTC+8)
     return date.toLocaleTimeString("en-PH", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
+      timeZone: "Asia/Manila",
     });
   };
 
@@ -255,7 +288,6 @@ export default function Dashboard() {
 
       showToast(`Time ${confirmType} recorded successfully.`, "success");
 
-      // Silent refresh: keep showing current card while fresh metrics load
       await refreshDashboardData(true);
     } catch {
       showToast(
