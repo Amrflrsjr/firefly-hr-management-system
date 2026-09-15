@@ -94,7 +94,7 @@ export default function Timesheet() {
   const showToast = useCallback(
     (text: string, type: "success" | "error" = "success") => {
       setToast({ text, type });
-      setTimeout(() => setToast(null), 3000);
+      setTimeout(() => setToast(null), 3500);
     },
     [],
   );
@@ -238,47 +238,103 @@ export default function Timesheet() {
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
     if (!manualDate || !targetId) return;
 
-    // 1. Format selected target date to YYYY-MM-DD
-    const targetDateStr = new Date(manualDate).toISOString().split("T")[0];
+    // Extract exact YYYY-MM-DD and time string without timezone shifting
+    const [selectedDateStr, selectedTimeStr] = manualDate.split("T");
 
-    // 2. Check if an existing log of the same TYPE already exists on that date
-    const duplicateLog = records.find((rec) => {
-      const recDateStr = new Date(rec.dateCreated || rec.date)
-        .toISOString()
-        .split("T")[0];
-      return recDateStr === targetDateStr && rec.type === manualType;
+    // Helper to get local YYYY-MM-DD from record date
+    const getFormattedRecordDateStr = (rawDate: string) => {
+      const d = new Date(rawDate);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    // 1. Check existing records for exact log type collision on this target date
+    const existingLog = records.find((rec) => {
+      const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
+      return recDateStr === selectedDateStr && rec.type === manualType;
     });
 
-    if (duplicateLog) {
+    if (existingLog) {
       showToast(
-        `A Time ${manualType} record already exists for this date (${targetDateStr}). Please delete the existing log first if you need to replace it.`,
+        `A Time ${manualType} record already exists for ${selectedDateStr}. An Admin must first delete the existing record before a new entry can be made.`,
         "error",
       );
       return;
     }
 
-    // 3. Proceed with submission if no duplicate is found
+    // Target datetime object selected in modal
+    const targetDateTime = new Date(
+      `${selectedDateStr}T${selectedTimeStr || "00:00"}`,
+    );
+
+    // 2. Chronological Order Validation (Time OUT must be strictly later than Time IN)
+    const existingInRecord = records.find((rec) => {
+      const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
+      return recDateStr === selectedDateStr && rec.type === "IN";
+    });
+
+    const existingOutRecord = records.find((rec) => {
+      const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
+      return recDateStr === selectedDateStr && rec.type === "OUT";
+    });
+
+    if (manualType === "OUT" && existingInRecord) {
+      const inTime = new Date(
+        existingInRecord.dateCreated || existingInRecord.date,
+      );
+      if (targetDateTime <= inTime) {
+        showToast(
+          `Time OUT must be later than Time IN (${inTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}).`,
+          "error",
+        );
+        return;
+      }
+    }
+
+    if (manualType === "IN" && existingOutRecord) {
+      const outTime = new Date(
+        existingOutRecord.dateCreated || existingOutRecord.date,
+      );
+      if (targetDateTime >= outTime) {
+        showToast(
+          `Time IN must be earlier than Time OUT (${outTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}).`,
+          "error",
+        );
+        return;
+      }
+    }
+
+    const targetIso = targetDateTime.toISOString();
+
     try {
       if (role === "Admin") {
         await api.post("/TimeRecords/time-in-out", {
           employeeId: Number(targetId),
           type: manualType,
-          dateCreated: new Date(manualDate).toISOString(),
+          dateCreated: targetIso,
         });
         showToast("Attendance record added successfully!");
       } else {
         await api.post("/AttendanceRequests", {
           employeeId: Number(targetId),
           type: manualType,
-          targetDate: new Date(manualDate).toISOString(),
+          targetDate: targetIso,
         });
-        showToast("Missed attendance correction requested successfully!");
+        showToast("Missed attendance request submitted successfully!");
       }
       setShowManualModal(false);
       setManualDate("");
       loadData();
-    } catch {
-      showToast("Failed to process attendance entry.", "error");
+    } catch (err: unknown) {
+      const errorResponse = (err as { response?: { data?: string } })?.response
+        ?.data;
+      const errorMsg =
+        typeof errorResponse === "string"
+          ? errorResponse
+          : "Failed to process attendance entry.";
+      showToast(errorMsg, "error");
     }
   };
 
@@ -299,8 +355,14 @@ export default function Timesheet() {
       await api.put(`/AttendanceRequests/${id}/approve`);
       showToast("Attendance request approved and logged!");
       loadData();
-    } catch {
-      showToast("Failed to approve request.", "error");
+    } catch (err: unknown) {
+      const errorResponse = (err as { response?: { data?: string } })?.response
+        ?.data;
+      const errorMsg =
+        typeof errorResponse === "string"
+          ? errorResponse
+          : "Failed to approve request.";
+      showToast(errorMsg, "error");
     } finally {
       setModalConfig((prev) => ({ ...prev, isOpen: false }));
     }
@@ -414,7 +476,7 @@ export default function Timesheet() {
                   setRecordsPage(1);
                   setRequestsPage(1);
                 }}
-                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50"
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer"
               >
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
@@ -619,7 +681,7 @@ export default function Timesheet() {
                 <button
                   onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
                   disabled={recordsPage === 1}
-                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -628,7 +690,7 @@ export default function Timesheet() {
                     setRecordsPage((p) => Math.min(totalRecordsPages, p + 1))
                   }
                   disabled={recordsPage === totalRecordsPages}
-                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -791,7 +853,7 @@ export default function Timesheet() {
                 <button
                   onClick={() => setRequestsPage((p) => Math.max(1, p - 1))}
                   disabled={requestsPage === 1}
-                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -800,7 +862,7 @@ export default function Timesheet() {
                     setRequestsPage((p) => Math.min(totalRequestsPages, p + 1))
                   }
                   disabled={requestsPage === totalRequestsPages}
-                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                  className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -837,7 +899,7 @@ export default function Timesheet() {
                 <select
                   value={manualType}
                   onChange={(e) => setManualType(e.target.value)}
-                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-(--primary)"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-(--primary) cursor-pointer"
                 >
                   <option value="IN">Time IN</option>
                   <option value="OUT">Time OUT</option>
@@ -852,7 +914,7 @@ export default function Timesheet() {
                   value={manualDate}
                   onChange={(e) => setManualDate(e.target.value)}
                   required
-                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary)"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) cursor-pointer"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
