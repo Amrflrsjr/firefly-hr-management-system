@@ -88,8 +88,7 @@ export default function Overtime() {
 
     setLoading(true);
     try {
-      const endpoint =
-        role === "Admin" ? "/Overtimes" : `/Overtimes/employee/${targetId}`;
+      const endpoint = `/Overtimes/employee/${targetId}`;
       const res = await api.get(endpoint);
       setOvertimes(res.data);
     } catch {
@@ -125,8 +124,8 @@ export default function Overtime() {
       }
 
       try {
-        const endpoint =
-          role === "Admin" ? "/Overtimes" : `/Overtimes/employee/${targetId}`;
+        // Updated to fetch only overtime records for the specific selected employee
+        const endpoint = `/Overtimes/employee/${targetId}`;
         const res = await api.get(endpoint);
         if (isMounted) setOvertimes(res.data);
       } catch {
@@ -277,12 +276,14 @@ export default function Overtime() {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return overtimes.slice(start, start + ITEMS_PER_PAGE);
   }, [overtimes, currentPage]);
+
   const hasActionsInOvertime = useMemo(() => {
     return paginatedOvertimes.some((ot) => {
       if (role === "Admin") return true;
       return ot.status === "In Review";
     });
   }, [paginatedOvertimes, role]);
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Panel */}
@@ -312,10 +313,10 @@ export default function Overtime() {
                   setSelectedEmployee(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50"
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer"
               >
                 {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
+                  <option key={emp.id} value={emp.id.toString()}>
                     {emp.lastName}, {emp.firstName}
                   </option>
                 ))}
@@ -576,14 +577,14 @@ export default function Overtime() {
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
             >
               <ChevronRight size={16} />
             </button>
@@ -603,7 +604,7 @@ export default function Overtime() {
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -624,7 +625,7 @@ export default function Overtime() {
                       })
                     }
                     disabled={isSubmitting}
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold"
+                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold cursor-pointer"
                     required
                   >
                     {employees.map((emp) => (
@@ -647,7 +648,7 @@ export default function Overtime() {
                     setFormData({ ...formData, overtimeDate: e.target.value })
                   }
                   disabled={isSubmitting}
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer"
                   required
                 />
               </div>
@@ -678,7 +679,7 @@ export default function Overtime() {
                   type="button"
                   onClick={() => setShowModal(false)}
                   disabled={isSubmitting}
-                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
