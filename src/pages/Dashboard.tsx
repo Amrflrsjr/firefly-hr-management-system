@@ -12,7 +12,6 @@ import {
   AlertCircle,
   CheckCircle2,
   CircleHelp,
-  TimerReset,
   ChevronRight,
   ShieldAlert,
   RefreshCw,
@@ -227,6 +226,21 @@ export default function Dashboard() {
       isMounted = false;
     };
   }, [employeeId, isAdmin]);
+
+  // Helper function to format UTC ISO dates into local 12-hour time
+  const formatLocalTime = (isoString: string | null) => {
+    if (!isoString || isoString === "00:00") return "00:00";
+
+    // Parse date string and format to Asia/Manila (PST)
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+
+    return date.toLocaleTimeString("en-PH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   const executeTimeLog = async () => {
     if (!confirmType || isSubmitting) return;
@@ -600,7 +614,7 @@ export default function Dashboard() {
                             </p>
 
                             <p className="text-sm font-bold text-slate-900">
-                              {metrics!.lastTimeIn || "00:00"}
+                              {formatLocalTime(metrics!.lastTimeIn)}
                             </p>
                           </div>
                         </div>
@@ -626,7 +640,7 @@ export default function Dashboard() {
                             </p>
 
                             <p className="text-sm font-bold text-slate-900">
-                              {metrics!.lastTimeOut || "00:00"}
+                              {formatLocalTime(metrics!.lastTimeOut)}
                             </p>
                           </div>
                         </div>
@@ -638,35 +652,6 @@ export default function Dashboard() {
                           />
                         )}
                       </div>
-
-                      {/* Manual attendance request */}
-                      <button
-                        type="button"
-                        onClick={() => navigate("/timesheet")}
-                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white p-4 text-left transition hover:border-(--primary) hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-800">
-                            <TimerReset size={17} />
-                          </div>
-
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800">
-                              Need an attendance correction?
-                            </p>
-
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              Submit a manual Time IN / OUT request for
-                              approval.
-                            </p>
-                          </div>
-                        </div>
-
-                        <ChevronRight
-                          size={17}
-                          className="shrink-0 text-slate-400"
-                        />
-                      </button>
                     </div>
                   )}
                 </div>
