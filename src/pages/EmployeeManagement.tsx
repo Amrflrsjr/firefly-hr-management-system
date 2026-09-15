@@ -128,6 +128,37 @@ export default function EmployeeManagement() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Check for duplicate Employee ID Number
+    const duplicateId = employees.some(
+      (emp) =>
+        emp.employeeIdNumber.trim().toLowerCase() ===
+        formData.employeeIdNumber.trim().toLowerCase(),
+    );
+
+    if (duplicateId) {
+      showToast(
+        "An employee with this Employee ID Number already exists.",
+        "error",
+      );
+      return;
+    }
+
+    // 2. Check for duplicate Username
+    const duplicateUsername = employees.some(
+      (emp) =>
+        emp.username.trim().toLowerCase() ===
+        formData.username.trim().toLowerCase(),
+    );
+
+    if (duplicateUsername) {
+      showToast(
+        "An employee with this Login Username already exists.",
+        "error",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await api.post("/Employees", {

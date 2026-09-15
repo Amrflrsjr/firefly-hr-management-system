@@ -236,7 +236,28 @@ export default function Timesheet() {
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+    if (!manualDate || !targetId) return;
 
+    // 1. Format selected target date to YYYY-MM-DD
+    const targetDateStr = new Date(manualDate).toISOString().split("T")[0];
+
+    // 2. Check if an existing log of the same TYPE already exists on that date
+    const duplicateLog = records.find((rec) => {
+      const recDateStr = new Date(rec.dateCreated || rec.date)
+        .toISOString()
+        .split("T")[0];
+      return recDateStr === targetDateStr && rec.type === manualType;
+    });
+
+    if (duplicateLog) {
+      showToast(
+        `A Time ${manualType} record already exists for this date (${targetDateStr}). Please delete the existing log first if you need to replace it.`,
+        "error",
+      );
+      return;
+    }
+
+    // 3. Proceed with submission if no duplicate is found
     try {
       if (role === "Admin") {
         await api.post("/TimeRecords/time-in-out", {

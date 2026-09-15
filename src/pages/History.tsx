@@ -24,13 +24,17 @@ const ITEMS_PER_PAGE = 5;
 export default function History() {
   const [history, setHistory] = useState<PaySlipData[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "1";
   const [selectedEmployee, setSelectedEmployee] =
     useState<string>(loggedInEmployeeId);
+
+  // Initialize loading based on whether we have a target ID to fetch
+  const initialTargetId =
+    role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+  const [loading, setLoading] = useState<boolean>(Boolean(initialTargetId));
 
   const [viewingPaySlip, setViewingPaySlip] = useState<PaySlipData | null>(
     null,
@@ -49,50 +53,45 @@ export default function History() {
     [],
   );
 
-  const loadHistory = useCallback(async () => {
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
-    setLoading(true);
-    try {
-      const res = await api.get(`/Payroll/history/${targetId}`);
-      setHistory(res.data);
-    } catch {
-      setHistory([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedEmployee, loggedInEmployeeId, role]);
-
+  // 1. Fetch Employee List for Admins on Mount
   useEffect(() => {
+    let isMounted = true;
     if (role === "Admin") {
       api
         .get("/Employees")
         .then((res) => {
-          setEmployees(res.data);
-          if (res.data.length > 0 && selectedEmployee === "1") {
-            setSelectedEmployee(String(res.data[0].id));
+          if (isMounted && res.data.length > 0) {
+            setEmployees(res.data);
+            setSelectedEmployee((prev) =>
+              prev === "1" ? String(res.data[0].id) : prev,
+            );
           }
         })
         .catch(() => {});
     }
-  }, [role, selectedEmployee]);
+    return () => {
+      isMounted = false;
+    };
+  }, [role]);
 
+  // 2. Fetch History when target employee changes
   useEffect(() => {
     let isMounted = true;
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
 
-    api
-      .get(`/Payroll/history/${targetId}`)
-      .then((res) => {
-        if (isMounted) setHistory(res.data);
-      })
-      .catch(() => {
-        if (isMounted) setHistory([]);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+    if (targetId) {
+      api
+        .get(`/Payroll/history/${targetId}`)
+        .then((res) => {
+          if (isMounted) setHistory(res.data);
+        })
+        .catch(() => {
+          if (isMounted) setHistory([]);
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false);
+        });
+    }
 
     return () => {
       isMounted = false;
@@ -104,7 +103,10 @@ export default function History() {
     try {
       await api.delete(`/Payroll/${deleteId}`);
       showToast("Pay slip deleted successfully.");
-      loadHistory();
+
+      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+      const res = await api.get(`/Payroll/history/${targetId}`);
+      setHistory(res.data);
     } catch {
       showToast("Failed to delete pay slip.", "error");
     } finally {
@@ -144,6 +146,7 @@ export default function History() {
               onChange={(e) => {
                 setSelectedEmployee(e.target.value);
                 setCurrentPage(1);
+                setLoading(true);
               }}
               className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
             >
