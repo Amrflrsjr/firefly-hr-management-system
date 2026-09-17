@@ -251,26 +251,63 @@ export default function Dashboard() {
   const executeTimeLog = async () => {
     if (!confirmType || isSubmitting) return;
 
-    try {
-      setIsSubmitting(true);
+    setIsSubmitting(true);
 
-      await api.post("/TimeRecords/time-in-out", {
-        employeeId: Number(employeeId),
-        type: confirmType,
-      });
+    const sendLogRequest = async (
+      latitude: number = 0,
+      longitude: number = 0,
+    ) => {
+      try {
+        await api.post("/TimeRecords/time-in-out", {
+          employeeId: Number(employeeId),
+          type: confirmType,
+          latitude,
+          longitude,
+        });
 
-      showToast(`Time ${confirmType} recorded successfully.`, "success");
+        showToast(`Time ${confirmType} recorded successfully.`, "success");
+        await refreshDashboardData(true);
+      } catch (err: unknown) {
+        const errorResponse = (err as { response?: { data?: string } })
+          ?.response?.data;
+        const errorMsg =
+          typeof errorResponse === "string"
+            ? errorResponse
+            : `Unable to record Time ${confirmType}.`;
+        showToast(errorMsg, "error");
+      } finally {
+        setIsSubmitting(false);
+        setConfirmType(null);
+      }
+    };
 
-      await refreshDashboardData(true);
-    } catch {
-      showToast(
-        `Unable to record Time ${confirmType}. Please try again.`,
-        "error",
-      );
-    } finally {
-      setIsSubmitting(false);
-      setConfirmType(null);
+    // Simple device check: Check if user agent indicates mobile/tablet
+    const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(
+      navigator.userAgent,
+    );
+
+    // If it's a PC/Desktop, skip browser geolocation entirely and send 0,0 (triggers "Office Network / PC" badge)
+    if (!isMobileDevice || !navigator.geolocation) {
+      await sendLogRequest(0, 0);
+      return;
     }
+
+    // If it's a mobile device, request high-accuracy GPS for field work tracking
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        sendLogRequest(latitude, longitude);
+      },
+      () => {
+        // Fallback if mobile user denies location permission
+        showToast(
+          "Location permission denied. Recording time without GPS.",
+          "error",
+        );
+        sendLogRequest(0, 0);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
   };
 
   const attendanceReady = !isLoadingMetrics && !metricsError && !!metrics;
