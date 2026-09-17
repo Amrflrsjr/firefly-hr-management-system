@@ -281,32 +281,29 @@ export default function Dashboard() {
       }
     };
 
-    // Simple device check: Check if user agent indicates mobile/tablet
+    // Check if the user is on a mobile/tablet device
     const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(
       navigator.userAgent,
     );
 
-    // If it's a PC/Desktop, skip browser geolocation entirely and send 0,0 (triggers "Office Network / PC" badge)
+    // If it's a desktop PC or geolocation is unsupported, skip prompting and log immediately as 0,0
     if (!isMobileDevice || !navigator.geolocation) {
       await sendLogRequest(0, 0);
       return;
     }
 
-    // If it's a mobile device, request high-accuracy GPS for field work tracking
+    // For mobile users: triggers the native browser prompt (only once; browsers remember your choice)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         sendLogRequest(latitude, longitude);
       },
-      () => {
-        // Fallback if mobile user denies location permission
-        showToast(
-          "Location permission denied. Recording time without GPS.",
-          "error",
-        );
+      (error) => {
+        // If user blocks permission or GPS fails, log smoothly as 0,0 without blocking them from timing in/out
+        console.warn("Mobile geolocation skipped or denied:", error.message);
         sendLogRequest(0, 0);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
     );
   };
 
