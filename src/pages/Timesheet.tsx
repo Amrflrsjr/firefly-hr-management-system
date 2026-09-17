@@ -57,6 +57,9 @@ export default function Timesheet() {
   const [manualDate, setManualDate] = useState("");
   const [manualType, setManualType] = useState("IN");
 
+  // Filter & Date States
+  const [filterDate, setFilterDate] = useState<string>("");
+
   // Loading States
   const [loadingData, setLoadingData] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -99,56 +102,26 @@ export default function Timesheet() {
     [],
   );
 
-  useEffect(() => {
-    if (role === "Admin") {
-      api
-        .get("/Employees")
-        .then((res) => {
-          setEmployees(res.data);
-          if (res.data.length > 0 && !selectedEmployee) {
-            setSelectedEmployee(res.data[0].id.toString());
-          }
-        })
-        .catch(() => {});
-    }
-  }, [role, selectedEmployee]);
-
-  const loadData = useCallback(async () => {
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
-
-    setLoadingData(true);
-    try {
-      const res = await api.get(`/TimeRecords/employee/${targetId}`);
-      setRecords(res.data);
-    } catch {
-      setRecords([]);
-    }
-
-    try {
-      const reqEndpoint =
-        role === "Admin"
-          ? "/AttendanceRequests"
-          : `/AttendanceRequests/employee/${targetId}`;
-      const reqRes = await api.get(reqEndpoint);
-      setRequests(reqRes.data);
-    } catch {
-      setRequests([]);
-    }
-    setLoadingData(false);
-  }, [selectedEmployee, loggedInEmployeeId, role]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-
-    const fetchData = async () => {
+  // Core data fetch function used by event handlers and initializers
+  const fetchTimesheetData = useCallback(
+    async (targetId: string, dateFilter: string) => {
       if (!targetId) {
-        if (isMounted) {
-          setRecords([]);
-          setRequests([]);
-        }
+        setRecords([]);
+        setRequests([]);
+        setLoadingData(false);
         return;
+      }
+
+      setLoadingData(true);
+      try {
+        const recordsEndpoint = dateFilter
+          ? `/TimeRecords/employee/${targetId}?date=${dateFilter}`
+          : `/TimeRecords/employee/${targetId}`;
+
+        const res = await api.get(recordsEndpoint);
+        setRecords(res.data || []);
+      } catch {
+        setRecords([]);
       }
 
       try {
@@ -156,34 +129,60 @@ export default function Timesheet() {
           role === "Admin"
             ? "/AttendanceRequests"
             : `/AttendanceRequests/employee/${targetId}`;
-
-        const [recordsRes, requestsRes] = await Promise.all([
-          api.get(`/TimeRecords/employee/${targetId}`),
-          api.get(reqEndpoint),
-        ]);
-
-        if (!isMounted) return;
-
-        setRecords(recordsRes.data);
-        setRequests(requestsRes.data);
+        const reqRes = await api.get(reqEndpoint);
+        setRequests(reqRes.data || []);
       } catch {
-        if (isMounted) {
-          setRecords([]);
-          setRequests([]);
-        }
+        setRequests([]);
       } finally {
-        if (isMounted) {
-          setLoadingData(false);
+        setLoadingData(false);
+      }
+    },
+    [role],
+  );
+
+  // Initial load and employee list fetch for Admin
+  useEffect(() => {
+    let isMounted = true;
+
+    const initLoad = async () => {
+      if (role === "Admin") {
+        try {
+          const res = await api.get("/Employees");
+          if (!isMounted) return;
+
+          setEmployees(res.data);
+          if (res.data.length > 0) {
+            const currentSelected =
+              selectedEmployee || res.data[0].id.toString();
+            if (!selectedEmployee) {
+              setSelectedEmployee(currentSelected);
+            }
+            await fetchTimesheetData(currentSelected, filterDate);
+          } else {
+            setLoadingData(false);
+          }
+        } catch {
+          if (isMounted) setLoadingData(false);
         }
+      } else if (loggedInEmployeeId) {
+        await fetchTimesheetData(loggedInEmployeeId, filterDate);
+      } else {
+        if (isMounted) setLoadingData(false);
       }
     };
 
-    fetchData();
+    initLoad();
 
     return () => {
       isMounted = false;
     };
-  }, [selectedEmployee, loggedInEmployeeId, role]);
+  }, [
+    role,
+    selectedEmployee,
+    filterDate,
+    loggedInEmployeeId,
+    fetchTimesheetData,
+  ]);
 
   const triggerDeleteRecordModal = (id: number) => {
     setModalConfig({
@@ -201,7 +200,8 @@ export default function Timesheet() {
     try {
       await api.delete(`/TimeRecords/${id}`);
       showToast("Time record deleted successfully.");
-      loadData();
+      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+      fetchTimesheetData(targetId, filterDate);
     } catch {
       showToast("Failed to delete time record.", "error");
     } finally {
@@ -225,7 +225,8 @@ export default function Timesheet() {
     try {
       await api.delete(`/AttendanceRequests/${id}`);
       showToast("Attendance request deleted successfully.");
-      loadData();
+      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+      fetchTimesheetData(targetId, filterDate);
     } catch {
       showToast("Failed to delete request.", "error");
     } finally {
@@ -238,10 +239,8 @@ export default function Timesheet() {
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
     if (!manualDate || !targetId) return;
 
-    // Extract exact YYYY-MM-DD and time string without timezone shifting
     const [selectedDateStr, selectedTimeStr] = manualDate.split("T");
 
-    // Helper to get local YYYY-MM-DD from record date
     const getFormattedRecordDateStr = (rawDate: string) => {
       const d = new Date(rawDate);
       const yyyy = d.getFullYear();
@@ -250,7 +249,6 @@ export default function Timesheet() {
       return `${yyyy}-${mm}-${dd}`;
     };
 
-    // 1. Check existing records for exact log type collision on this target date
     const existingLog = records.find((rec) => {
       const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
       return recDateStr === selectedDateStr && rec.type === manualType;
@@ -264,12 +262,10 @@ export default function Timesheet() {
       return;
     }
 
-    // Target datetime object selected in modal
     const targetDateTime = new Date(
       `${selectedDateStr}T${selectedTimeStr || "00:00"}`,
     );
 
-    // 2. Chronological Order Validation (Time OUT must be strictly later than Time IN)
     const existingInRecord = records.find((rec) => {
       const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
       return recDateStr === selectedDateStr && rec.type === "IN";
@@ -326,7 +322,7 @@ export default function Timesheet() {
       }
       setShowManualModal(false);
       setManualDate("");
-      loadData();
+      fetchTimesheetData(targetId, filterDate);
     } catch (err: unknown) {
       const errorResponse = (err as { response?: { data?: string } })?.response
         ?.data;
@@ -354,7 +350,8 @@ export default function Timesheet() {
     try {
       await api.put(`/AttendanceRequests/${id}/approve`);
       showToast("Attendance request approved and logged!");
-      loadData();
+      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+      fetchTimesheetData(targetId, filterDate);
     } catch (err: unknown) {
       const errorResponse = (err as { response?: { data?: string } })?.response
         ?.data;
@@ -384,7 +381,8 @@ export default function Timesheet() {
     try {
       await api.put(`/AttendanceRequests/${id}/reject`);
       showToast("Attendance request declined successfully.");
-      loadData();
+      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+      fetchTimesheetData(targetId, filterDate);
     } catch {
       showToast("Failed to decline request.", "error");
     } finally {
@@ -432,7 +430,6 @@ export default function Timesheet() {
 
   const pendingCount = requests.filter((r) => r.status === "Pending").length;
 
-  // Pagination Logic
   const totalRecordsPages = Math.ceil(records.length / ITEMS_PER_PAGE);
   const paginatedRecords = useMemo(() => {
     const start = (recordsPage - 1) * ITEMS_PER_PAGE;
@@ -448,7 +445,7 @@ export default function Timesheet() {
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
@@ -464,19 +461,44 @@ export default function Timesheet() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 flex-nowrap">
+          {/* Date Filter Picker */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => {
+                setFilterDate(e.target.value);
+                setRecordsPage(1);
+              }}
+              className="border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
+              title="Filter by Date"
+            />
+            {filterDate && (
+              <button
+                onClick={() => {
+                  setFilterDate("");
+                  setRecordsPage(1);
+                }}
+                className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl transition-colors cursor-pointer border border-slate-200"
+                title="Clear date filter"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
           {role === "Admin" && employees.length > 0 && (
-            <div className="relative w-full sm:w-56">
+            <div className="relative w-48 shrink-0">
               <select
                 value={selectedEmployee}
                 disabled={loadingData || isExporting}
                 onChange={(e) => {
-                  setLoadingData(true);
                   setSelectedEmployee(e.target.value);
                   setRecordsPage(1);
                   setRequestsPage(1);
                 }}
-                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer"
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer truncate"
               >
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
@@ -494,16 +516,16 @@ export default function Timesheet() {
           <button
             onClick={handleExportExcel}
             disabled={isExporting || loadingData}
-            className="flex items-center gap-2 bg-green-900 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-green-900 hover:bg-green-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0 active:scale-[0.98] disabled:opacity-50"
           >
             {isExporting ? (
               <>
-                <Loader2 size={15} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin" />
                 Exporting...
               </>
             ) : (
               <>
-                <Download size={15} />
+                <Download size={14} />
                 Export Excel
               </>
             )}
@@ -512,10 +534,10 @@ export default function Timesheet() {
           <button
             onClick={() => setShowManualModal(true)}
             disabled={loadingData}
-            className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center w-full sm:w-auto active:scale-[0.98] disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0 active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
           >
-            <PlusCircle size={15} />
-            {role === "Admin" ? "Add Record" : "File Missed Attendance"}
+            <PlusCircle size={14} />
+            {role === "Admin" ? "Add Record" : "File Missed"}
           </button>
         </div>
       </div>
@@ -660,7 +682,9 @@ export default function Timesheet() {
                             No attendance records found
                           </p>
                           <p className="text-xs text-slate-400">
-                            Time IN and Time OUT logs will appear here.
+                            {filterDate
+                              ? `No records found for ${filterDate}`
+                              : "Time IN and Time OUT logs will appear here."}
                           </p>
                         </div>
                       </td>
