@@ -42,6 +42,7 @@ const formatCurrency = (val?: number) => {
 };
 
 export default function CashAdvances() {
+  const [activeTab, setActiveTab] = useState<"all" | "pending">("all");
   const [advances, setAdvances] = useState<CashAdvance[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -183,7 +184,7 @@ export default function CashAdvances() {
   const handleDecline = async (id: number) => {
     try {
       await api.put(`/CashAdvances/${id}/decline`);
-      showToast("Cash advance request declined.", "error");
+      showToast("Cash advance request declined.");
       loadAdvances();
     } catch {
       showToast("Failed to decline cash advance.", "error");
@@ -223,16 +224,27 @@ export default function CashAdvances() {
     return `Employee ID: ${adv.employeeId}`;
   };
 
-  const totalPages = Math.ceil(advances.length / ITEMS_PER_PAGE);
+  // Separate data according to active tab ("all" excludes pending items so they stay in "pending")
+  const filteredAdvances = useMemo(() => {
+    if (activeTab === "pending") {
+      return advances.filter((a) => a.status === "Pending");
+    }
+    return advances.filter((a) => a.status !== "Pending");
+  }, [advances, activeTab]);
+
+  const pendingCount = useMemo(() => {
+    return advances.filter((a) => a.status === "Pending").length;
+  }, [advances]);
+
+  const totalPages = Math.ceil(filteredAdvances.length / ITEMS_PER_PAGE);
   const paginatedAdvances = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return advances.slice(start, start + ITEMS_PER_PAGE);
-  }, [advances, currentPage]);
+    return filteredAdvances.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredAdvances, currentPage]);
 
-  // Determine if there are any available actions on the current page
   const hasActionsOnPage = useMemo(() => {
-    if (role === "Admin") return true; // Admin can always delete records
-    return paginatedAdvances.some((adv) => adv.status === "Pending"); // Employees only have action if status is Pending
+    if (role === "Admin") return true;
+    return paginatedAdvances.some((adv) => adv.status === "Pending");
   }, [role, paginatedAdvances]);
 
   return (
@@ -258,6 +270,41 @@ export default function CashAdvances() {
         >
           <Plus size={16} />{" "}
           {role === "Admin" ? "Add Advance Record" : "Request Advance"}
+        </button>
+      </div>
+
+      {/* Tabs for All Advances vs Pending Requests */}
+      <div className="flex border-b border-slate-200 gap-8 px-2">
+        <button
+          onClick={() => {
+            setActiveTab("all");
+            setCurrentPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "all"
+              ? "border-(--primary) text-amber-900"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          All Advances
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("pending");
+            setCurrentPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === "pending"
+              ? "border-(--primary) text-amber-900"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          {role === "Admin" ? "Pending Requests" : "My Pending Requests"}
+          {pendingCount > 0 && (
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+              {pendingCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -351,8 +398,8 @@ export default function CashAdvances() {
                         </>
                       )}
 
-                      {/* Employee / Admin Cancel Action */}
-                      {adv.status === "Pending" && (
+                      {/* Employee / Non-Admin Cancel Action */}
+                      {role !== "Admin" && adv.status === "Pending" && (
                         <button
                           onClick={() => setCancelId(adv.id)}
                           className="px-2.5 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"

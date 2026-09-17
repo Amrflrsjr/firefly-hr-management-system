@@ -69,8 +69,10 @@ jspm_packages
 .cache
 .parcel-cache
 
-# Vite cache
+# Vite build output & cache
 .vite
+dist
+dist/
 
 # Next.js build output
 .next

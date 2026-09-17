@@ -36,6 +36,7 @@ interface Employee {
 const ITEMS_PER_PAGE = 10;
 
 export default function Overtime() {
+  const [activeTab, setActiveTab] = useState<"all" | "pending">("all");
   const [overtimes, setOvertimes] = useState<OvertimeItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -45,8 +46,11 @@ export default function Overtime() {
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<string>(loggedInEmployeeId);
+
+  // Ensure non-admin accounts are locked strictly to their own ID, while admin defaults to "all"
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(
+    role === "Admin" ? "all" : loggedInEmployeeId,
+  );
 
   const [formData, setFormData] = useState({
     employeeId: loggedInEmployeeId,
@@ -83,14 +87,17 @@ export default function Overtime() {
   );
 
   const loadOvertimes = useCallback(async () => {
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
-
     setLoading(true);
+    const effectiveId =
+      role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+
     try {
-      const endpoint = `/Overtimes/employee/${targetId}`;
+      let endpoint = "/Overtimes";
+      if (effectiveId && effectiveId !== "all") {
+        endpoint = `/Overtimes/employee/${effectiveId}`;
+      }
       const res = await api.get(endpoint);
-      setOvertimes(res.data);
+      setOvertimes(res.data || []);
     } catch {
       showToast("Failed to load overtime records.", "error");
       setOvertimes([]);
@@ -100,56 +107,43 @@ export default function Overtime() {
   }, [role, selectedEmployee, loggedInEmployeeId, showToast]);
 
   useEffect(() => {
-    if (role === "Admin") {
-      api
-        .get("/Employees")
-        .then((res) => {
-          setEmployees(res.data);
-          if (res.data.length > 0 && !selectedEmployee) {
-            setSelectedEmployee(res.data[0].id.toString());
-          }
-        })
-        .catch(() => {});
-    }
-  }, [role, selectedEmployee]);
-
-  useEffect(() => {
     let isMounted = true;
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
 
-    const fetchOvertimes = async () => {
-      if (!targetId) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-
-      try {
-        // Updated to fetch only overtime records for the specific selected employee
-        const endpoint = `/Overtimes/employee/${targetId}`;
-        const res = await api.get(endpoint);
-        if (isMounted) setOvertimes(res.data);
-      } catch {
-        if (isMounted) {
-          showToast("Failed to load overtime records.", "error");
-          setOvertimes([]);
+    const initLoad = async () => {
+      if (role === "Admin") {
+        try {
+          const res = await api.get("/Employees");
+          if (!isMounted) return;
+          setEmployees(res.data);
+          await loadOvertimes();
+        } catch {
+          if (isMounted) setLoading(false);
         }
-      } finally {
+      } else if (loggedInEmployeeId) {
+        await loadOvertimes();
+      } else {
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchOvertimes();
+    initLoad();
 
     return () => {
       isMounted = false;
     };
-  }, [role, selectedEmployee, loggedInEmployeeId, showToast]);
+  }, [role, loggedInEmployeeId, loadOvertimes]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     const targetId =
       role === "Admin" ? formData.employeeId : loggedInEmployeeId;
+
+    if (!targetId || targetId === "all") {
+      showToast("Please select a valid employee.", "error");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       await api.post("/Overtimes", {
@@ -271,11 +265,23 @@ export default function Overtime() {
     }
   };
 
-  const totalPages = Math.ceil(overtimes.length / ITEMS_PER_PAGE);
+  // Separate data according to active tab ("all" excludes pending items so they stay in "pending")
+  const filteredOvertimes = useMemo(() => {
+    if (activeTab === "pending") {
+      return overtimes.filter((ot) => ot.status === "In Review");
+    }
+    return overtimes.filter((ot) => ot.status !== "In Review");
+  }, [overtimes, activeTab]);
+
+  const pendingCount = useMemo(() => {
+    return overtimes.filter((ot) => ot.status === "In Review").length;
+  }, [overtimes]);
+
+  const totalPages = Math.ceil(filteredOvertimes.length / ITEMS_PER_PAGE);
   const paginatedOvertimes = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return overtimes.slice(start, start + ITEMS_PER_PAGE);
-  }, [overtimes, currentPage]);
+    return filteredOvertimes.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOvertimes, currentPage]);
 
   const hasActionsInOvertime = useMemo(() => {
     return paginatedOvertimes.some((ot) => {
@@ -283,6 +289,15 @@ export default function Overtime() {
       return ot.status === "In Review";
     });
   }, [paginatedOvertimes, role]);
+
+  const tableColSpan =
+    role === "Admin" && selectedEmployee === "all"
+      ? hasActionsInOvertime
+        ? 6
+        : 5
+      : hasActionsInOvertime
+        ? 5
+        : 4;
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
@@ -309,12 +324,13 @@ export default function Overtime() {
                 value={selectedEmployee}
                 disabled={loading}
                 onChange={(e) => {
-                  setLoading(true);
                   setSelectedEmployee(e.target.value);
                   setCurrentPage(1);
+                  loadOvertimes();
                 }}
                 className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer"
               >
+                <option value="all">All Employees</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id.toString()}>
                     {emp.lastName}, {emp.firstName}
@@ -339,12 +355,49 @@ export default function Overtime() {
         </div>
       </div>
 
+      {/* Tabs for All Overtime vs Pending Requests */}
+      <div className="flex border-b border-slate-200 gap-8 px-2">
+        <button
+          onClick={() => {
+            setActiveTab("all");
+            setCurrentPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "all"
+              ? "border-(--primary) text-amber-900"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          All Overtime
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("pending");
+            setCurrentPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === "pending"
+              ? "border-(--primary) text-amber-900"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          {role === "Admin" ? "Pending Requests" : "My Pending Requests"}
+          {pendingCount > 0 && (
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Desktop Table View */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              <th className="py-3.5 px-5">Employee</th>
+              {role === "Admin" && selectedEmployee === "all" && (
+                <th className="py-3.5 px-5">Employee</th>
+              )}
               <th className="py-3.5 px-5">Date</th>
               <th className="py-3.5 px-5">Hours</th>
               <th className="py-3.5 px-5">Status</th>
@@ -357,7 +410,7 @@ export default function Overtime() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={hasActionsInOvertime ? 5 : 4}
+                  colSpan={tableColSpan}
                   className="py-12 text-center text-slate-400"
                 >
                   <Loader2
@@ -375,9 +428,11 @@ export default function Overtime() {
                   key={ot.id}
                   className="hover:bg-slate-50/60 transition-colors"
                 >
-                  <td className="py-4 px-5 font-bold text-slate-900">
-                    {ot.employeeName || "Employee"}
-                  </td>
+                  {role === "Admin" && selectedEmployee === "all" && (
+                    <td className="py-4 px-5 font-bold text-slate-900">
+                      {ot.employeeName || "Employee"}
+                    </td>
+                  )}
                   <td className="py-4 px-5 text-slate-600 text-xs font-medium">
                     {new Date(ot.overtimeDate).toLocaleDateString("en-US", {
                       month: "short",
@@ -461,7 +516,7 @@ export default function Overtime() {
             ) : (
               <tr>
                 <td
-                  colSpan={hasActionsInOvertime ? 5 : 4}
+                  colSpan={tableColSpan}
                   className="py-12 text-center text-slate-400 text-xs"
                 >
                   <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
@@ -509,13 +564,13 @@ export default function Overtime() {
                     <>
                       <button
                         onClick={() => triggerApproveModal(ot.id)}
-                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer"
                       >
                         <CheckCircle size={16} />
                       </button>
                       <button
                         onClick={() => triggerDeclineModal(ot.id)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                       >
                         <X size={16} />
                       </button>
@@ -524,7 +579,7 @@ export default function Overtime() {
                   {role !== "Admin" && ot.status === "In Review" && (
                     <button
                       onClick={() => triggerCancelModal(ot.id)}
-                      className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg"
+                      className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer"
                       title="Cancel Request"
                     >
                       <Ban size={16} />
@@ -533,7 +588,7 @@ export default function Overtime() {
                   {role === "Admin" && (
                     <button
                       onClick={() => triggerDeleteModal(ot.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                     >
                       <Trash2 size={16} />
                     </button>

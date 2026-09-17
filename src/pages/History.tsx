@@ -53,6 +53,18 @@ export default function History() {
     [],
   );
 
+  // Helper to sort history so newest pay slips are at the top
+  const sortHistoryNewestFirst = (data: PaySlipData[]) => {
+    return [...data].sort((a, b) => {
+      const dateA = new Date(a.payPeriodEnd).getTime();
+      const dateB = new Date(b.payPeriodEnd).getTime();
+      if (dateA !== dateB) {
+        return dateB - dateA; // Newest date first
+      }
+      return b.id - a.id; // Fallback to highest ID if dates are identical
+    });
+  };
+
   // 1. Fetch Employee List for Admins on Mount
   useEffect(() => {
     let isMounted = true;
@@ -83,7 +95,9 @@ export default function History() {
       api
         .get(`/Payroll/history/${targetId}`)
         .then((res) => {
-          if (isMounted) setHistory(res.data);
+          if (isMounted) {
+            setHistory(sortHistoryNewestFirst(res.data || []));
+          }
         })
         .catch(() => {
           if (isMounted) setHistory([]);
@@ -106,7 +120,7 @@ export default function History() {
 
       const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
       const res = await api.get(`/Payroll/history/${targetId}`);
-      setHistory(res.data);
+      setHistory(sortHistoryNewestFirst(res.data || []));
     } catch {
       showToast("Failed to delete pay slip.", "error");
     } finally {

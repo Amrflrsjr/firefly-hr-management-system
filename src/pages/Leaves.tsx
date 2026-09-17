@@ -36,6 +36,7 @@ interface Employee {
 const ITEMS_PER_PAGE = 10;
 
 export default function Leaves() {
+  const [activeTab, setActiveTab] = useState<"all" | "pending">("all");
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -45,8 +46,11 @@ export default function Leaves() {
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<string>(loggedInEmployeeId);
+
+  // Ensure non-admin accounts are locked strictly to their own ID, while admin defaults to "all"
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(
+    role === "Admin" ? "all" : loggedInEmployeeId,
+  );
 
   const [formData, setFormData] = useState({
     employeeId: loggedInEmployeeId,
@@ -83,15 +87,17 @@ export default function Leaves() {
   );
 
   const loadLeaves = useCallback(async () => {
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
-
     setLoading(true);
+    const effectiveId =
+      role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+
     try {
-      const endpoint =
-        role === "Admin" ? "/Leaves" : `/Leaves/employee/${targetId}`;
+      let endpoint = "/Leaves";
+      if (effectiveId && effectiveId !== "all") {
+        endpoint = `/Leaves/employee/${effectiveId}`;
+      }
       const res = await api.get(endpoint);
-      setLeaves(res.data);
+      setLeaves(res.data || []);
     } catch {
       showToast("Failed to load leaves.", "error");
       setLeaves([]);
@@ -101,56 +107,43 @@ export default function Leaves() {
   }, [role, selectedEmployee, loggedInEmployeeId, showToast]);
 
   useEffect(() => {
-    if (role === "Admin") {
-      api
-        .get("/Employees")
-        .then((res) => {
-          setEmployees(res.data);
-          if (res.data.length > 0 && !selectedEmployee) {
-            setSelectedEmployee(res.data[0].id.toString());
-          }
-        })
-        .catch(() => {});
-    }
-  }, [role, selectedEmployee]);
-
-  useEffect(() => {
     let isMounted = true;
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
 
-    const fetchLeaves = async () => {
-      if (!targetId) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-
-      try {
-        const endpoint =
-          role === "Admin" ? "/Leaves" : `/Leaves/employee/${targetId}`;
-        const res = await api.get(endpoint);
-        if (isMounted) setLeaves(res.data);
-      } catch {
-        if (isMounted) {
-          showToast("Failed to load leaves.", "error");
-          setLeaves([]);
+    const initLoad = async () => {
+      if (role === "Admin") {
+        try {
+          const res = await api.get("/Employees");
+          if (!isMounted) return;
+          setEmployees(res.data);
+          await loadLeaves();
+        } catch {
+          if (isMounted) setLoading(false);
         }
-      } finally {
+      } else if (loggedInEmployeeId) {
+        await loadLeaves();
+      } else {
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchLeaves();
+    initLoad();
 
     return () => {
       isMounted = false;
     };
-  }, [role, selectedEmployee, loggedInEmployeeId, showToast]);
+  }, [role, loggedInEmployeeId, loadLeaves]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     const targetId =
       role === "Admin" ? formData.employeeId : loggedInEmployeeId;
+
+    if (!targetId || targetId === "all") {
+      showToast("Please select a valid employee.", "error");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       await api.post("/Leaves", {
@@ -271,18 +264,40 @@ export default function Leaves() {
     }
   };
 
-  const totalPages = Math.ceil(leaves.length / ITEMS_PER_PAGE);
+  // Separate data according to active tab ("all" excludes pending items so they stay in "pending")
+  const filteredLeaves = useMemo(() => {
+    if (activeTab === "pending") {
+      return leaves.filter((l) => l.status === "In Review");
+    }
+    return leaves.filter((l) => l.status !== "In Review");
+  }, [leaves, activeTab]);
+
+  const pendingCount = useMemo(() => {
+    return leaves.filter((l) => l.status === "In Review").length;
+  }, [leaves]);
+
+  const totalPages = Math.ceil(filteredLeaves.length / ITEMS_PER_PAGE);
   const paginatedLeaves = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return leaves.slice(start, start + ITEMS_PER_PAGE);
-  }, [leaves, currentPage]);
+    return filteredLeaves.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredLeaves, currentPage]);
 
   const hasActionsInLeaves = useMemo(() => {
     return paginatedLeaves.some((leave) => {
-      if (role === "Admin") return true; // Admin always has Delete, Approve, or Decline
-      return leave.status === "In Review"; // Employee only has Cancel for pending requests
+      if (role === "Admin") return true;
+      return leave.status === "In Review";
     });
   }, [paginatedLeaves, role]);
+
+  const tableColSpan =
+    role === "Admin" && selectedEmployee === "all"
+      ? hasActionsInLeaves
+        ? 6
+        : 5
+      : hasActionsInLeaves
+        ? 5
+        : 4;
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header Panel */}
@@ -308,12 +323,13 @@ export default function Leaves() {
                 value={selectedEmployee}
                 disabled={loading}
                 onChange={(e) => {
-                  setLoading(true);
                   setSelectedEmployee(e.target.value);
                   setCurrentPage(1);
+                  loadLeaves();
                 }}
-                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50"
+                className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer"
               >
+                <option value="all">All Employees</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.lastName}, {emp.firstName}
@@ -338,12 +354,49 @@ export default function Leaves() {
         </div>
       </div>
 
+      {/* Tabs for All Leaves vs Pending Requests */}
+      <div className="flex border-b border-slate-200 gap-8 px-2">
+        <button
+          onClick={() => {
+            setActiveTab("all");
+            setCurrentPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === "all"
+              ? "border-(--primary) text-amber-900"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          All Leaves
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("pending");
+            setCurrentPage(1);
+          }}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === "pending"
+              ? "border-(--primary) text-amber-900"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          {role === "Admin" ? "Pending Requests" : "My Pending Requests"}
+          {pendingCount > 0 && (
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Desktop Table View */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              <th className="py-3.5 px-5">Employee</th>
+              {role === "Admin" && selectedEmployee === "all" && (
+                <th className="py-3.5 px-5">Employee</th>
+              )}
               <th className="py-3.5 px-5">Date</th>
               <th className="py-3.5 px-5">Hours</th>
               <th className="py-3.5 px-5">Status</th>
@@ -356,7 +409,7 @@ export default function Leaves() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={hasActionsInLeaves ? 5 : 4}
+                  colSpan={tableColSpan}
                   className="py-12 text-center text-slate-400"
                 >
                   <Loader2
@@ -374,9 +427,11 @@ export default function Leaves() {
                   key={leave.id}
                   className="hover:bg-slate-50/60 transition-colors"
                 >
-                  <td className="py-4 px-5 font-bold text-slate-900">
-                    {leave.employeeName || "Employee"}
-                  </td>
+                  {role === "Admin" && selectedEmployee === "all" && (
+                    <td className="py-4 px-5 font-bold text-slate-900">
+                      {leave.employeeName || "Employee"}
+                    </td>
+                  )}
                   <td className="py-4 px-5 text-slate-600 text-xs font-medium">
                     {new Date(leave.leaveDate).toLocaleDateString("en-US", {
                       month: "short",
@@ -460,16 +515,16 @@ export default function Leaves() {
             ) : (
               <tr>
                 <td
-                  colSpan={hasActionsInLeaves ? 5 : 4}
+                  colSpan={tableColSpan}
                   className="py-12 text-center text-slate-400 text-xs"
                 >
                   <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
                     <AlertCircle size={32} strokeWidth={1.5} />
                     <p className="text-sm font-semibold text-slate-600">
-                      No leave requests found
+                      No leave records found
                     </p>
                     <p className="text-xs text-slate-400">
-                      Submitted leave applications will appear here.
+                      Processed leave applications will appear here.
                     </p>
                   </div>
                 </td>
@@ -508,13 +563,13 @@ export default function Leaves() {
                     <>
                       <button
                         onClick={() => triggerApproveModal(leave.id)}
-                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer"
                       >
                         <CheckCircle size={16} />
                       </button>
                       <button
                         onClick={() => triggerDeclineModal(leave.id)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                       >
                         <X size={16} />
                       </button>
@@ -523,7 +578,7 @@ export default function Leaves() {
                   {role !== "Admin" && leave.status === "In Review" && (
                     <button
                       onClick={() => triggerCancelModal(leave.id)}
-                      className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg"
+                      className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer"
                       title="Cancel Request"
                     >
                       <Ban size={16} />
@@ -532,7 +587,7 @@ export default function Leaves() {
                   {role === "Admin" && (
                     <button
                       onClick={() => triggerDeleteModal(leave.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -561,7 +616,7 @@ export default function Leaves() {
           ))
         ) : (
           <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
-            No leave requests found.
+            No leave records found.
           </div>
         )}
       </div>
@@ -576,14 +631,14 @@ export default function Leaves() {
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
             >
               <ChevronRight size={16} />
             </button>
@@ -601,7 +656,7 @@ export default function Leaves() {
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -622,7 +677,7 @@ export default function Leaves() {
                       })
                     }
                     disabled={isSubmitting}
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold"
+                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold cursor-pointer"
                     required
                   >
                     {employees.map((emp) => (
@@ -645,7 +700,7 @@ export default function Leaves() {
                     setFormData({ ...formData, leaveDate: e.target.value })
                   }
                   disabled={isSubmitting}
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer"
                   required
                 />
               </div>
@@ -676,7 +731,7 @@ export default function Leaves() {
                   type="button"
                   onClick={() => setShowModal(false)}
                   disabled={isSubmitting}
-                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
