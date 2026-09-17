@@ -35,6 +35,7 @@ interface AttendanceRequestItem {
 interface TimeRecordItem {
   id: number;
   employeeId: number;
+  employee?: { firstName: string; lastName: string };
   type: string;
   date: string;
   dateCreated: string;
@@ -102,21 +103,22 @@ export default function Timesheet() {
     [],
   );
 
-  // Core data fetch function used by event handlers and initializers
+  // Core data fetch function supporting "all" employees or specific employee + date filter
   const fetchTimesheetData = useCallback(
     async (targetId: string, dateFilter: string) => {
-      if (!targetId) {
-        setRecords([]);
-        setRequests([]);
-        setLoadingData(false);
-        return;
-      }
-
       setLoadingData(true);
       try {
-        const recordsEndpoint = dateFilter
-          ? `/TimeRecords/employee/${targetId}?date=${dateFilter}`
-          : `/TimeRecords/employee/${targetId}`;
+        let recordsEndpoint = "/TimeRecords";
+
+        if (role === "Admin" && targetId !== "all") {
+          recordsEndpoint = dateFilter
+            ? `/TimeRecords/employee/${targetId}?date=${dateFilter}`
+            : `/TimeRecords/employee/${targetId}`;
+        } else {
+          recordsEndpoint = dateFilter
+            ? `/TimeRecords?date=${dateFilter}`
+            : `/TimeRecords`;
+        }
 
         const res = await api.get(recordsEndpoint);
         setRecords(res.data || []);
@@ -126,9 +128,9 @@ export default function Timesheet() {
 
       try {
         const reqEndpoint =
-          role === "Admin"
-            ? "/AttendanceRequests"
-            : `/AttendanceRequests/employee/${targetId}`;
+          role === "Admin" && targetId !== "all"
+            ? `/AttendanceRequests/employee/${targetId}`
+            : "/AttendanceRequests";
         const reqRes = await api.get(reqEndpoint);
         setRequests(reqRes.data || []);
       } catch {
@@ -152,10 +154,9 @@ export default function Timesheet() {
 
           setEmployees(res.data);
           if (res.data.length > 0) {
-            const currentSelected =
-              selectedEmployee || res.data[0].id.toString();
+            const currentSelected = selectedEmployee || "all";
             if (!selectedEmployee) {
-              setSelectedEmployee(currentSelected);
+              setSelectedEmployee("all");
             }
             await fetchTimesheetData(currentSelected, filterDate);
           } else {
@@ -200,8 +201,7 @@ export default function Timesheet() {
     try {
       await api.delete(`/TimeRecords/${id}`);
       showToast("Time record deleted successfully.");
-      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-      fetchTimesheetData(targetId, filterDate);
+      fetchTimesheetData(selectedEmployee, filterDate);
     } catch {
       showToast("Failed to delete time record.", "error");
     } finally {
@@ -225,8 +225,7 @@ export default function Timesheet() {
     try {
       await api.delete(`/AttendanceRequests/${id}`);
       showToast("Attendance request deleted successfully.");
-      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-      fetchTimesheetData(targetId, filterDate);
+      fetchTimesheetData(selectedEmployee, filterDate);
     } catch {
       showToast("Failed to delete request.", "error");
     } finally {
@@ -236,8 +235,14 @@ export default function Timesheet() {
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!manualDate || !targetId) return;
+    const targetId =
+      role === "Admin" && selectedEmployee !== "all"
+        ? selectedEmployee
+        : loggedInEmployeeId;
+    if (!manualDate || !targetId) {
+      showToast("Please select a specific employee to add a record.", "error");
+      return;
+    }
 
     const [selectedDateStr, selectedTimeStr] = manualDate.split("T");
 
@@ -251,12 +256,16 @@ export default function Timesheet() {
 
     const existingLog = records.find((rec) => {
       const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
-      return recDateStr === selectedDateStr && rec.type === manualType;
+      return (
+        recDateStr === selectedDateStr &&
+        rec.type === manualType &&
+        rec.employeeId.toString() === targetId
+      );
     });
 
     if (existingLog) {
       showToast(
-        `A Time ${manualType} record already exists for ${selectedDateStr}. An Admin must first delete the existing record before a new entry can be made.`,
+        `A Time ${manualType} record already exists for this employee on ${selectedDateStr}.`,
         "error",
       );
       return;
@@ -265,43 +274,6 @@ export default function Timesheet() {
     const targetDateTime = new Date(
       `${selectedDateStr}T${selectedTimeStr || "00:00"}`,
     );
-
-    const existingInRecord = records.find((rec) => {
-      const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
-      return recDateStr === selectedDateStr && rec.type === "IN";
-    });
-
-    const existingOutRecord = records.find((rec) => {
-      const recDateStr = getFormattedRecordDateStr(rec.dateCreated || rec.date);
-      return recDateStr === selectedDateStr && rec.type === "OUT";
-    });
-
-    if (manualType === "OUT" && existingInRecord) {
-      const inTime = new Date(
-        existingInRecord.dateCreated || existingInRecord.date,
-      );
-      if (targetDateTime <= inTime) {
-        showToast(
-          `Time OUT must be later than Time IN (${inTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}).`,
-          "error",
-        );
-        return;
-      }
-    }
-
-    if (manualType === "IN" && existingOutRecord) {
-      const outTime = new Date(
-        existingOutRecord.dateCreated || existingOutRecord.date,
-      );
-      if (targetDateTime >= outTime) {
-        showToast(
-          `Time IN must be earlier than Time OUT (${outTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}).`,
-          "error",
-        );
-        return;
-      }
-    }
-
     const targetIso = targetDateTime.toISOString();
 
     try {
@@ -322,7 +294,7 @@ export default function Timesheet() {
       }
       setShowManualModal(false);
       setManualDate("");
-      fetchTimesheetData(targetId, filterDate);
+      fetchTimesheetData(selectedEmployee, filterDate);
     } catch (err: unknown) {
       const errorResponse = (err as { response?: { data?: string } })?.response
         ?.data;
@@ -350,8 +322,7 @@ export default function Timesheet() {
     try {
       await api.put(`/AttendanceRequests/${id}/approve`);
       showToast("Attendance request approved and logged!");
-      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-      fetchTimesheetData(targetId, filterDate);
+      fetchTimesheetData(selectedEmployee, filterDate);
     } catch (err: unknown) {
       const errorResponse = (err as { response?: { data?: string } })?.response
         ?.data;
@@ -381,8 +352,7 @@ export default function Timesheet() {
     try {
       await api.put(`/AttendanceRequests/${id}/reject`);
       showToast("Attendance request declined successfully.");
-      const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-      fetchTimesheetData(targetId, filterDate);
+      fetchTimesheetData(selectedEmployee, filterDate);
     } catch {
       showToast("Failed to decline request.", "error");
     } finally {
@@ -391,19 +361,26 @@ export default function Timesheet() {
   };
 
   const handleExportExcel = async () => {
-    const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (!targetId) return;
+    if (selectedEmployee === "all") {
+      showToast(
+        "Please select a specific employee to export individual timesheet.",
+        "error",
+      );
+      return;
+    }
 
     setIsExporting(true);
     try {
       const response = await api.get(
-        `/TimeRecords/export/employee/${targetId}`,
+        `/TimeRecords/export/employee/${selectedEmployee}`,
         {
           responseType: "blob",
         },
       );
 
-      const activeEmp = employees.find((e) => e.id.toString() === targetId);
+      const activeEmp = employees.find(
+        (e) => e.id.toString() === selectedEmployee,
+      );
       const empName = activeEmp
         ? `${activeEmp.lastName}_${activeEmp.firstName}`
         : "Employee";
@@ -500,6 +477,7 @@ export default function Timesheet() {
                 }}
                 className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white disabled:opacity-50 cursor-pointer truncate"
               >
+                <option value="all">All Employees</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.lastName}, {emp.firstName}
@@ -515,8 +493,13 @@ export default function Timesheet() {
 
           <button
             onClick={handleExportExcel}
-            disabled={isExporting || loadingData}
+            disabled={isExporting || loadingData || selectedEmployee === "all"}
             className="flex items-center gap-1.5 bg-green-900 hover:bg-green-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0 active:scale-[0.98] disabled:opacity-50"
+            title={
+              selectedEmployee === "all"
+                ? "Select an employee to export"
+                : "Export Excel"
+            }
           >
             {isExporting ? (
               <>
@@ -533,8 +516,15 @@ export default function Timesheet() {
 
           <button
             onClick={() => setShowManualModal(true)}
-            disabled={loadingData}
+            disabled={
+              loadingData || (role === "Admin" && selectedEmployee === "all")
+            }
             className="flex items-center gap-1.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0 active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
+            title={
+              selectedEmployee === "all"
+                ? "Select a specific employee to add a record"
+                : "Add Record"
+            }
           >
             <PlusCircle size={14} />
             {role === "Admin" ? "Add Record" : "File Missed"}
@@ -585,6 +575,9 @@ export default function Timesheet() {
               <table className="w-full text-left border-collapse min-w-125">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                    {selectedEmployee === "all" && (
+                      <th className="py-3.5 px-5">Employee</th>
+                    )}
                     <th className="py-3.5 px-5">Log Type</th>
                     <th className="py-3.5 px-5">Date Logged</th>
                     <th className="py-3.5 px-5 text-right">Timestamp</th>
@@ -597,7 +590,7 @@ export default function Timesheet() {
                   {loadingData ? (
                     <tr>
                       <td
-                        colSpan={role === "Admin" ? 4 : 3}
+                        colSpan={selectedEmployee === "all" ? 5 : 4}
                         className="py-12 text-center text-slate-400"
                       >
                         <Loader2
@@ -615,6 +608,13 @@ export default function Timesheet() {
                         key={record.id}
                         className="hover:bg-slate-50/60 transition-colors group"
                       >
+                        {selectedEmployee === "all" && (
+                          <td className="py-4 px-5 font-semibold text-slate-900">
+                            {record.employee
+                              ? `${record.employee.lastName}, ${record.employee.firstName}`
+                              : `ID: ${record.employeeId}`}
+                          </td>
+                        )}
                         <td className="py-4 px-5">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
@@ -673,7 +673,7 @@ export default function Timesheet() {
                   ) : (
                     <tr>
                       <td
-                        colSpan={role === "Admin" ? 4 : 3}
+                        colSpan={selectedEmployee === "all" ? 5 : 4}
                         className="py-12 px-4 text-center"
                       >
                         <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
