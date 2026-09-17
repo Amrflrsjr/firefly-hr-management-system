@@ -157,7 +157,7 @@ function LocationCell({ lat, lon }: { lat: number; lon: number }) {
           </span>
         ) : (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-            Their Own Location (~
+            Location (~
             {Math.round(
               distanceMeters >= 1000 ? distanceMeters / 1000 : distanceMeters,
             )}
@@ -191,8 +191,11 @@ export default function Timesheet() {
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<string>(loggedInEmployeeId);
+
+  // Ensure non-admin accounts are locked strictly to their own employee ID
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(
+    role === "Admin" ? "all" : loggedInEmployeeId,
+  );
 
   // Modal & Toast States
   const [modalConfig, setModalConfig] = useState<{
@@ -223,17 +226,19 @@ export default function Timesheet() {
     [],
   );
 
-  // Core data fetch function supporting "all" employees or specific employee + date filter
+  // Core data fetch function enforcing account isolation for non-admins
   const fetchTimesheetData = useCallback(
     async (targetId: string, dateFilter: string) => {
       setLoadingData(true);
+      const effectiveId = role === "Admin" ? targetId : loggedInEmployeeId;
+
       try {
         let recordsEndpoint = "/TimeRecords";
 
-        if (role === "Admin" && targetId !== "all") {
+        if (effectiveId && effectiveId !== "all") {
           recordsEndpoint = dateFilter
-            ? `/TimeRecords/employee/${targetId}?date=${dateFilter}`
-            : `/TimeRecords/employee/${targetId}`;
+            ? `/TimeRecords/employee/${effectiveId}?date=${dateFilter}`
+            : `/TimeRecords/employee/${effectiveId}`;
         } else {
           recordsEndpoint = dateFilter
             ? `/TimeRecords?date=${dateFilter}`
@@ -248,8 +253,8 @@ export default function Timesheet() {
 
       try {
         const reqEndpoint =
-          role === "Admin" && targetId !== "all"
-            ? `/AttendanceRequests/employee/${targetId}`
+          effectiveId && effectiveId !== "all"
+            ? `/AttendanceRequests/employee/${effectiveId}`
             : "/AttendanceRequests";
         const reqRes = await api.get(reqEndpoint);
         setRequests(reqRes.data || []);
@@ -259,7 +264,7 @@ export default function Timesheet() {
         setLoadingData(false);
       }
     },
-    [role],
+    [role, loggedInEmployeeId],
   );
 
   // Initial load and employee list fetch for Admin
@@ -273,15 +278,8 @@ export default function Timesheet() {
           if (!isMounted) return;
 
           setEmployees(res.data);
-          if (res.data.length > 0) {
-            const currentSelected = selectedEmployee || "all";
-            if (!selectedEmployee) {
-              setSelectedEmployee("all");
-            }
-            await fetchTimesheetData(currentSelected, filterDate);
-          } else {
-            setLoadingData(false);
-          }
+          const currentSelected = selectedEmployee || "all";
+          await fetchTimesheetData(currentSelected, filterDate);
         } catch {
           if (isMounted) setLoadingData(false);
         }
@@ -481,7 +479,9 @@ export default function Timesheet() {
   };
 
   const handleExportExcel = async () => {
-    if (selectedEmployee === "all") {
+    const targetExportId =
+      role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+    if (targetExportId === "all") {
       showToast(
         "Please select a specific employee to export individual timesheet.",
         "error",
@@ -492,14 +492,14 @@ export default function Timesheet() {
     setIsExporting(true);
     try {
       const response = await api.get(
-        `/TimeRecords/export/employee/${selectedEmployee}`,
+        `/TimeRecords/export/employee/${targetExportId}`,
         {
           responseType: "blob",
         },
       );
 
       const activeEmp = employees.find(
-        (e) => e.id.toString() === selectedEmployee,
+        (e) => e.id.toString() === targetExportId,
       );
       const empName = activeEmp
         ? `${activeEmp.lastName}_${activeEmp.firstName}`
@@ -540,7 +540,7 @@ export default function Timesheet() {
   }, [requests, requestsPage]);
 
   // Dynamic column spans for tables
-  const recordsColSpan = selectedEmployee === "all" ? 6 : 5;
+  const recordsColSpan = role === "Admin" && selectedEmployee === "all" ? 6 : 5;
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -561,9 +561,10 @@ export default function Timesheet() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-nowrap">
+        {/* Mobile-Friendly Action Controls Container */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
           {/* Date Filter Picker */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
             <input
               type="date"
               value={filterDate}
@@ -571,7 +572,7 @@ export default function Timesheet() {
                 setFilterDate(e.target.value);
                 setRecordsPage(1);
               }}
-              className="border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
+              className="w-full sm:w-auto border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
               title="Filter by Date"
             />
             {filterDate && (
@@ -580,7 +581,7 @@ export default function Timesheet() {
                   setFilterDate("");
                   setRecordsPage(1);
                 }}
-                className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl transition-colors cursor-pointer border border-slate-200"
+                className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl transition-colors cursor-pointer border border-slate-200 shrink-0"
                 title="Clear date filter"
               >
                 <X size={14} />
@@ -589,7 +590,7 @@ export default function Timesheet() {
           </div>
 
           {role === "Admin" && employees.length > 0 && (
-            <div className="relative w-48 shrink-0">
+            <div className="relative w-full sm:w-48 shrink-0">
               <select
                 value={selectedEmployee}
                 disabled={loadingData || isExporting}
@@ -616,10 +617,14 @@ export default function Timesheet() {
 
           <button
             onClick={handleExportExcel}
-            disabled={isExporting || loadingData || selectedEmployee === "all"}
-            className="flex items-center gap-1.5 bg-green-900 hover:bg-green-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0 active:scale-[0.98] disabled:opacity-50"
+            disabled={
+              isExporting ||
+              loadingData ||
+              (role === "Admin" && selectedEmployee === "all")
+            }
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-green-900 hover:bg-green-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50"
             title={
-              selectedEmployee === "all"
+              role === "Admin" && selectedEmployee === "all"
                 ? "Select an employee to export"
                 : "Export Excel"
             }
@@ -642,9 +647,9 @@ export default function Timesheet() {
             disabled={
               loadingData || (role === "Admin" && selectedEmployee === "all")
             }
-            className="flex items-center gap-1.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0 active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
             title={
-              selectedEmployee === "all"
+              role === "Admin" && selectedEmployee === "all"
                 ? "Select a specific employee to add a record"
                 : "Add Record"
             }
@@ -698,7 +703,7 @@ export default function Timesheet() {
               <table className="w-full text-left border-collapse min-w-150">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                    {selectedEmployee === "all" && (
+                    {role === "Admin" && selectedEmployee === "all" && (
                       <th className="py-3.5 px-5">Employee</th>
                     )}
                     <th className="py-3.5 px-5">Log Type</th>
@@ -732,7 +737,7 @@ export default function Timesheet() {
                         key={record.id}
                         className="hover:bg-slate-50/60 transition-colors group"
                       >
-                        {selectedEmployee === "all" && (
+                        {role === "Admin" && selectedEmployee === "all" && (
                           <td className="py-4 px-5 font-semibold text-slate-900">
                             {record.employee
                               ? `${record.employee.lastName}, ${record.employee.firstName}`
