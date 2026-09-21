@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Save,
+  RotateCcw,
   Lock,
   Mail,
   MapPin,
@@ -18,21 +19,7 @@ import {
 } from "lucide-react";
 import Toast from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
-
-interface EmployeeProfile {
-  employeeIdNumber: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  jobTitle: string;
-  currentAddress: string;
-  contactNumber: string;
-  personalEmailAddress: string;
-  emergencyContactName: string;
-  emergencyContactNumber: string;
-  relationToEmployee: string;
-  emergencyContactAddress: string;
-}
+import type { Employee } from "../types/employee";
 
 export default function Profile() {
   const role = localStorage.getItem("role") || "Employee";
@@ -42,9 +29,8 @@ export default function Profile() {
 
   const [activeTab, setActiveTab] = useState<"info" | "security">("info");
 
-  const [initialEmployee, setInitialEmployee] =
-    useState<EmployeeProfile | null>(null);
-  const [employee, setEmployee] = useState<EmployeeProfile | null>(null);
+  const [initialEmployee, setInitialEmployee] = useState<Employee | null>(null);
+  const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState<boolean>(
     () => !isSuperAdmin && Boolean(employeeId),
   );
@@ -84,13 +70,25 @@ export default function Profile() {
       });
   }, [isSuperAdmin, employeeId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     if (!employee) return;
-    setEmployee({ ...employee, [e.target.name]: e.target.value });
+    const { name, value, type } = e.target;
+    const val =
+      type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
+    setEmployee({ ...employee, [name]: val });
   };
 
   const hasChanges =
     JSON.stringify(employee) !== JSON.stringify(initialEmployee);
+
+  const handleDiscard = () => {
+    if (initialEmployee) {
+      setEmployee({ ...initialEmployee });
+      setToast({ message: "Changes discarded.", type: "success" });
+    }
+  };
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,19 +123,7 @@ export default function Profile() {
         return;
       }
       try {
-        await api.put(`/Employees/profile/${employeeId}`, {
-          username: employee.username,
-          firstName: employee.firstName,
-          lastName: employee.lastName,
-          jobTitle: employee.jobTitle,
-          currentAddress: employee.currentAddress,
-          contactNumber: employee.contactNumber,
-          personalEmailAddress: employee.personalEmailAddress,
-          emergencyContactName: employee.emergencyContactName,
-          emergencyContactNumber: employee.emergencyContactNumber,
-          relationToEmployee: employee.relationToEmployee,
-          emergencyContactAddress: employee.emergencyContactAddress,
-        });
+        await api.put(`/Employees/profile/${employeeId}`, employee);
         setInitialEmployee(employee);
         setToast({ message: "Profile updated successfully!", type: "success" });
       } catch {
@@ -185,7 +171,7 @@ export default function Profile() {
   }
 
   const userInitials = employee
-    ? `${employee.firstName[0] || ""}${employee.lastName[0] || ""}`
+    ? `${employee.firstName?.[0] || ""}${employee.lastName?.[0] || ""}`
     : "AD";
 
   return (
@@ -395,18 +381,18 @@ export default function Profile() {
           <div className="space-y-6">
             {activeTab === "info" ? (
               <form onSubmit={handleProfileSubmit} className="space-y-6">
-                {/* Employment Details */}
+                {/* Account & Personal Information */}
                 <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                     <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                       <IdCard size={18} />
                     </div>
                     <h2 className="text-sm font-bold text-slate-900">
-                      Employment Information
+                      Personal & Account Information
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                         Username
@@ -439,6 +425,20 @@ export default function Profile() {
 
                     <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Middle Name
+                      </label>
+                      <input
+                        type="text"
+                        name="middleName"
+                        value={employee.middleName || ""}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                         Last Name
                       </label>
                       <input
@@ -463,6 +463,67 @@ export default function Profile() {
                         onChange={handleChange}
                         disabled={isSubmitting}
                         className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Gender
+                      </label>
+                      <select
+                        name="gender"
+                        value={employee.gender || "Male"}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                      >
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Civil Status
+                      </label>
+                      <select
+                        name="civilStatus"
+                        value={employee.civilStatus || "Single"}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                      >
+                        <option value="Single">Single</option>
+                        <option value="Married">Married</option>
+                        <option value="Widowed">Widowed</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Blood Type
+                      </label>
+                      <input
+                        type="text"
+                        name="bloodType"
+                        value={employee.bloodType || ""}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Age
+                      </label>
+                      <input
+                        type="number"
+                        name="age"
+                        value={employee.age || 0}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
                       />
                     </div>
                   </div>
@@ -520,7 +581,7 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                         Current Address
                       </label>
@@ -538,6 +599,80 @@ export default function Profile() {
                           className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Permanent Address
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          name="permanentAddress"
+                          value={employee.permanentAddress || ""}
+                          onChange={handleChange}
+                          disabled={isSubmitting}
+                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        />
+                        <MapPin
+                          size={15}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statutory Numbers */}
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
+                      <IdCard size={18} />
+                    </div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Statutory Information
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        SSS Number
+                      </label>
+                      <input
+                        type="text"
+                        name="sssNumber"
+                        value={employee.sssNumber || ""}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        PhilHealth Number
+                      </label>
+                      <input
+                        type="text"
+                        name="philHealthNumber"
+                        value={employee.philHealthNumber || ""}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Pag-IBIG Number
+                      </label>
+                      <input
+                        type="text"
+                        name="pagIbigNumber"
+                        value={employee.pagIbigNumber || ""}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                      />
                     </div>
                   </div>
                 </div>
@@ -630,22 +765,35 @@ export default function Profile() {
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !hasChanges}
-                    className="w-full sm:w-auto py-2.5 px-6 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={15} className="animate-spin" /> Saving
-                        Changes...
-                      </>
-                    ) : (
-                      <>
-                        <Save size={15} /> Save Changes
-                      </>
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    {hasChanges && (
+                      <button
+                        type="button"
+                        onClick={handleDiscard}
+                        disabled={isSubmitting}
+                        className="flex-1 sm:flex-none py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                      >
+                        <RotateCcw size={14} /> Discard
+                      </button>
                     )}
-                  </button>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !hasChanges}
+                      className="flex-1 sm:flex-none py-2.5 px-6 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />{" "}
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save size={15} /> Save Changes
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </form>
             ) : (

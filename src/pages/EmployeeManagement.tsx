@@ -14,17 +14,13 @@ import {
   User,
   Eye,
   Edit3,
-  IdCard,
-  Building2,
-  Briefcase,
-  DollarSign,
-  Wallet,
-  Receipt,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
+import EmployeeFormFields from "../components/employee/EmployeeFormFields";
+import ViewEmployeeModal from "../components/employee/ViewEmployeeModal";
 
 interface Employee {
   id: number;
@@ -32,17 +28,78 @@ interface Employee {
   username: string;
   firstName: string;
   lastName: string;
+  password?: string;
+  mustChangePassword: boolean;
+  isAdmin: boolean;
+  middleName: string;
+  dateOfBirth: string;
+  age: number;
+  gender: string;
+  civilStatus: string;
+  currentAddress: string;
+  permanentAddress: string;
+  contactNumber: string;
+  personalEmailAddress: string;
+  emergencyContactName: string;
+  emergencyContactNumber: string;
+  relationToEmployee: string;
+  emergencyContactAddress: string;
   jobTitle: string;
   employmentType: string;
+  dateHired: string;
+  declaredDateHired: string;
   officeType: string;
   dailySalary: number;
   dailyAllowance: number;
+  bloodType: string;
   hasGovernmentDeductions: boolean;
+  sssNumber: string;
+  philHealthNumber: string;
+  pagIbigNumber: string;
   deductionType: string;
-  isAdmin: boolean;
+  photo?: string;
+  employmentStatus: string;
 }
 
 const ITEMS_PER_PAGE = 10;
+
+const initialFormState = {
+  employeeIdNumber: "",
+  username: "",
+  password: "firefly123",
+  mustChangePassword: true,
+  isAdmin: false,
+  firstName: "",
+  lastName: "",
+  middleName: "",
+  dateOfBirth: "1995-01-01",
+  age: 28,
+  gender: "Male",
+  civilStatus: "Single",
+  currentAddress: "",
+  permanentAddress: "",
+  contactNumber: "",
+  personalEmailAddress: "",
+  emergencyContactName: "",
+  emergencyContactNumber: "",
+  relationToEmployee: "",
+  emergencyContactAddress: "",
+  jobTitle: "",
+  employmentType: "Regular",
+  officeType: "Admin",
+  dateHired: new Date().toISOString(),
+  declaredDateHired: new Date().toISOString(),
+  dailySalary: 600,
+  dailyAllowance: 100,
+  bloodType: "O+",
+  hasGovernmentDeductions: true,
+  sssNumber: "", // Added missing tracking key
+  philHealthNumber: "", // Added missing tracking key
+  pagIbigNumber: "", // Added missing tracking key
+  deductionType: "Per Pay Period", // Added missing tracking key
+  photo: "", // Added missing tracking key
+  employmentStatus: "Active", // Added missing tracking key
+};
 
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -66,21 +123,7 @@ export default function EmployeeManagement() {
     type: "success" | "error";
   } | null>(null);
 
-  const [formData, setFormData] = useState({
-    employeeIdNumber: "",
-    username: "",
-    firstName: "",
-    lastName: "",
-    middleName: "",
-    jobTitle: "",
-    employmentType: "Regular",
-    officeType: "Admin",
-    dailySalary: 600,
-    dailyAllowance: 100,
-    hasGovernmentDeductions: true,
-    deductionType: "Per Pay Period",
-    isAdmin: false,
-  });
+  const [formData, setFormData] = useState(initialFormState);
   const navigate = useNavigate();
 
   const showToast = useCallback(
@@ -92,35 +135,27 @@ export default function EmployeeManagement() {
   );
 
   const loadEmployees = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await api.get("/Employees");
       setEmployees(res.data);
     } catch {
       showToast("Failed to load employees.", "error");
-    } finally {
-      setLoading(false);
     }
   }, [showToast]);
 
   useEffect(() => {
     let isMounted = true;
-
-    api
-      .get("/Employees")
-      .then((res) => {
-        if (isMounted) {
-          setEmployees(res.data);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          showToast("Failed to load employees.", "error");
-          setLoading(false);
-        }
-      });
-
+    const fetchInitialData = async () => {
+      try {
+        const res = await api.get("/Employees");
+        if (isMounted) setEmployees(res.data);
+      } catch {
+        if (isMounted) showToast("Failed to load employees.", "error");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchInitialData();
     return () => {
       isMounted = false;
     };
@@ -128,62 +163,11 @@ export default function EmployeeManagement() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // 1. Check for duplicate Employee ID Number
-    const duplicateId = employees.some(
-      (emp) =>
-        emp.employeeIdNumber.trim().toLowerCase() ===
-        formData.employeeIdNumber.trim().toLowerCase(),
-    );
-
-    if (duplicateId) {
-      showToast(
-        "An employee with this Employee ID Number already exists.",
-        "error",
-      );
-      return;
-    }
-
-    // 2. Check for duplicate Username
-    const duplicateUsername = employees.some(
-      (emp) =>
-        emp.username.trim().toLowerCase() ===
-        formData.username.trim().toLowerCase(),
-    );
-
-    if (duplicateUsername) {
-      showToast(
-        "An employee with this Login Username already exists.",
-        "error",
-      );
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      await api.post("/Employees", {
-        ...formData,
-        dateOfBirth: new Date().toISOString(),
-        dateHired: new Date().toISOString(),
-        declaredDateHired: new Date().toISOString(),
-        employmentStatus: "Active",
-      });
+      await api.post("/Employees", formData);
       setShowAddModal(false);
-      setFormData({
-        employeeIdNumber: "",
-        username: "",
-        firstName: "",
-        lastName: "",
-        middleName: "",
-        jobTitle: "",
-        employmentType: "Regular",
-        officeType: "Admin",
-        dailySalary: 600,
-        dailyAllowance: 100,
-        hasGovernmentDeductions: true,
-        deductionType: "Per Pay Period",
-        isAdmin: false,
-      });
+      setFormData(initialFormState);
       await loadEmployees();
       showToast("Successfully added new employee.");
     } catch {
@@ -254,7 +238,6 @@ export default function EmployeeManagement() {
           <button
             onClick={() => navigate("/dashboard")}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-            title="Return to Dashboard"
           >
             <ArrowLeft size={20} />
           </button>
@@ -301,263 +284,132 @@ export default function EmployeeManagement() {
         </div>
 
         <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-          <button
-            onClick={() => {
-              setFilterRole("all");
-              setCurrentPage(1);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              filterRole === "all"
-                ? "bg-(--primary) text-slate-950 shadow-xs font-bold"
-                : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            All ({employees.length})
-          </button>
-          <button
-            onClick={() => {
-              setFilterRole("admin");
-              setCurrentPage(1);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              filterRole === "admin"
-                ? "bg-(--primary) text-slate-950 shadow-xs font-bold"
-                : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            Admins ({employees.filter((e) => e.isAdmin).length})
-          </button>
-          <button
-            onClick={() => {
-              setFilterRole("staff");
-              setCurrentPage(1);
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              filterRole === "staff"
-                ? "bg-(--primary) text-slate-950 shadow-xs font-bold"
-                : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            Staff ({employees.filter((e) => !e.isAdmin).length})
-          </button>
-        </div>
-      </div>
-
-      {/* Directory Table (Desktop & Tablet) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-5">Employee ID / User</th>
-                <th className="py-3.5 px-5">Full Name</th>
-                <th className="py-3.5 px-5">Job Title</th>
-                <th className="py-3.5 px-5">Employment</th>
-                <th className="py-3.5 px-5">Access Role</th>
-                <th className="py-3.5 px-5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Loader2
-                        size={24}
-                        className="animate-spin text-amber-600"
-                      />
-                      <p className="text-xs font-semibold text-slate-500">
-                        Loading directory...
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : paginatedEmployees.length > 0 ? (
-                paginatedEmployees.map((emp) => (
-                  <tr
-                    key={emp.id}
-                    className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
-                    onClick={() => setViewEmployee(emp)}
-                  >
-                    <td className="py-4 px-5">
-                      <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                        {emp.employeeIdNumber}
-                      </span>
-                      <p className="text-[11px] font-semibold mt-1">
-                        @{emp.username || "N/A"}
-                      </p>
-                    </td>
-
-                    <td className="py-4 px-5 font-bold text-slate-900">
-                      {emp.lastName}, {emp.firstName}
-                    </td>
-
-                    <td className="py-4 px-5 text-slate-600 font-medium text-xs">
-                      {emp.jobTitle}
-                    </td>
-
-                    <td className="py-4 px-5">
-                      <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
-                        {emp.employmentType}
-                      </span>
-                    </td>
-
-                    <td className="py-4 px-5">
-                      {emp.isAdmin ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200/60">
-                          <ShieldCheck size={13} /> Admin
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200/60">
-                          <User size={13} className="text-slate-400" /> Employee
-                        </span>
-                      )}
-                    </td>
-
-                    <td
-                      className="py-4 px-5 text-right"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setViewEmployee(emp)}
-                          className="text-slate-400 p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer"
-                          title="View Profile Details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => setEditEmployeeData(emp)}
-                          className="text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
-                          title="Edit Profile"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(emp.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Delete Record"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Users size={32} strokeWidth={1.5} />
-                      <p className="text-sm font-semibold text-slate-600">
-                        No employees found
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Mobile Directory Card Grid */}
-      <div className="grid grid-cols-1 gap-3 md:hidden">
-        {loading ? (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
-            <Loader2
-              size={24}
-              className="animate-spin text-amber-600 mx-auto"
-            />
-            <p className="text-xs font-semibold text-slate-500">
-              Loading staff cards...
-            </p>
-          </div>
-        ) : paginatedEmployees.length > 0 ? (
-          paginatedEmployees.map((emp) => (
-            <div
-              key={emp.id}
-              onClick={() => setViewEmployee(emp)}
-              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 cursor-pointer"
+          {(["all", "admin", "staff"] as const).map((role) => (
+            <button
+              key={role}
+              onClick={() => {
+                setFilterRole(role);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer capitalize ${
+                filterRole === role
+                  ? "bg-(--primary) text-slate-950 shadow-xs font-bold"
+                  : "text-slate-500 hover:bg-slate-100"
+              }`}
             >
-              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-(--primary) font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
-                    {emp.firstName[0]}
-                    {emp.lastName[0]}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">
-                      {emp.lastName}, {emp.firstName}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium">
-                      {emp.jobTitle}
-                    </p>
-                  </div>
-                </div>
+              {role} (
+              {role === "all"
+                ? employees.length
+                : employees.filter((e) =>
+                    role === "admin" ? e.isAdmin : !e.isAdmin,
+                  ).length}
+              )
+            </button>
+          ))}
+        </div>
+      </div>
 
-                <div
-                  className="flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
+      {/* Directory Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <th className="py-3.5 px-5">Employee ID / User</th>
+              <th className="py-3.5 px-5">Full Name</th>
+              <th className="py-3.5 px-5">Job Title</th>
+              <th className="py-3.5 px-5">Employment</th>
+              <th className="py-3.5 px-5">Access Role</th>
+              <th className="py-3.5 px-5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <Loader2
+                    size={24}
+                    className="animate-spin text-amber-600 mx-auto"
+                  />
+                </td>
+              </tr>
+            ) : paginatedEmployees.length > 0 ? (
+              paginatedEmployees.map((emp) => (
+                <tr
+                  key={emp.id}
+                  className="hover:bg-slate-50/65 transition-colors group cursor-pointer"
+                  onClick={() => setViewEmployee(emp)}
                 >
-                  <button
-                    onClick={() => setViewEmployee(emp)}
-                    className="text-slate-400 p-1.5 rounded-lg hover:bg-amber-50"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  <button
-                    onClick={() => setEditEmployeeData(emp)}
-                    className="text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteId(emp.id)}
-                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs pt-1">
-                <div className="space-y-1">
-                  <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 block w-fit">
-                    {emp.employeeIdNumber}
-                  </span>
-                  <span className="text-[11px] font-semibold block">
-                    @{emp.username}
-                  </span>
-                </div>
-
-                <div>
-                  {emp.isAdmin ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200/60">
-                      <ShieldCheck size={12} /> Admin
+                  <td className="py-4 px-5">
+                    <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                      {emp.employeeIdNumber}
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/60">
-                      Employee
+                    <p className="text-[11px] font-semibold mt-1">
+                      @{emp.username}
+                    </p>
+                  </td>
+                  <td className="py-4 px-5 font-bold text-slate-900">
+                    {emp.lastName}, {emp.firstName}
+                  </td>
+                  <td className="py-4 px-5 text-slate-600 font-medium text-xs">
+                    {emp.jobTitle}
+                  </td>
+                  <td className="py-4 px-5">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/60">
+                      {emp.employmentType}
                     </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
-            <Users size={32} strokeWidth={1.5} className="mx-auto" />
-            <p className="text-sm font-semibold text-slate-600">
-              No matching staff records
-            </p>
-          </div>
-        )}
+                  </td>
+                  <td className="py-4 px-5">
+                    {emp.isAdmin ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200/60">
+                        <ShieldCheck size={13} /> Admin
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200/60">
+                        <User size={13} className="text-slate-400" /> Employee
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="py-4 px-5 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setViewEmployee(emp)}
+                        className="text-slate-400 p-1.5 rounded-lg hover:bg-amber-50"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        onClick={() => setEditEmployeeData(emp)}
+                        className="text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteId(emp.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-slate-400">
+                  No employees found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Pagination Controls */}
       {!loading && totalPages > 1 && (
-        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+        <div className="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
           <span>
             Page {currentPage} of {totalPages}
           </span>
@@ -565,14 +417,14 @@ export default function EmployeeManagement() {
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+              className="p-2 border rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+              className="p-2 border rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
             >
               <ChevronRight size={16} />
             </button>
@@ -580,386 +432,118 @@ export default function EmployeeManagement() {
         </div>
       )}
 
-      {/* VIEW EMPLOYEE DETAILS MODAL */}
-      {viewEmployee && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-md w-full space-y-6 border border-slate-200 shadow-xl">
-            {/* Header */}
-            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-(--primary) font-bold text-lg flex items-center justify-center shadow-md shrink-0">
-                  {viewEmployee.firstName[0]}
-                  {viewEmployee.lastName[0]}
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    {viewEmployee.firstName} {viewEmployee.lastName}
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium">
-                    {viewEmployee.jobTitle}
-                  </p>
-                </div>
-              </div>
+      {/* Modals */}
+      <ViewEmployeeModal
+        employee={viewEmployee}
+        onClose={() => setViewEmployee(null)}
+        onEdit={(emp) => {
+          setViewEmployee(null);
+          setEditEmployeeData(emp);
+        }}
+      />
 
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 z-50">
+          <div className="bg-white rounded-none sm:rounded-3xl max-w-2xl w-full h-full sm:h-auto max-h-none sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn">
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 flex justify-between items-center border-b border-slate-100 bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-800">
+                  <UserCheck size={20} />
+                </div>
+                <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                  Register New Employee
+                </h2>
+              </div>
               <button
-                onClick={() => setViewEmployee(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Employee Details Grid */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <IdCard size={12} /> Employee ID
-                </span>
-                <p className="font-mono font-bold text-slate-900">
-                  {viewEmployee.employeeIdNumber}
-                </p>
-              </div>
+            {/* Modal Body / Scrollable Form */}
+            <form
+              onSubmit={handleCreate}
+              className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4"
+            >
+              <EmployeeFormFields
+                formData={formData}
+                setFormData={setFormData}
+                isSubmitting={isSubmitting}
+              />
+            </form>
 
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <User size={12} /> Username
-                </span>
-                <p className="font-semibold">
-                  @{viewEmployee.username || "N/A"}
-                </p>
-              </div>
-
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Briefcase size={12} /> Employment
-                </span>
-                <p className="font-semibold text-slate-800">
-                  {viewEmployee.employmentType}
-                </p>
-              </div>
-
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Building2 size={12} /> Office Type
-                </span>
-                <p className="font-semibold text-slate-800">
-                  {viewEmployee.officeType}
-                </p>
-              </div>
-
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <DollarSign size={12} /> Daily Salary
-                </span>
-                <p className="font-mono font-bold text-slate-900">
-                  PHP {viewEmployee.dailySalary?.toFixed(2) || "600.00"}
-                </p>
-              </div>
-
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Wallet size={12} /> Daily Allowance
-                </span>
-                <p className="font-mono font-bold text-slate-900">
-                  PHP {viewEmployee.dailyAllowance?.toFixed(2) || "0.00"}
-                </p>
-              </div>
-
-              <div className="col-span-2 bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Receipt size={12} /> Gov Deductions & Type
-                </span>
-                <p className="font-semibold text-slate-800">
-                  {viewEmployee.hasGovernmentDeductions
-                    ? `Enabled (${viewEmployee.deductionType})`
-                    : "Disabled"}
-                </p>
-              </div>
-            </div>
-
-            {/* Access Role Status */}
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-600">
-                System Access Level
-              </span>
-              {viewEmployee.isAdmin ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200/60">
-                  <ShieldCheck size={13} /> Administrator
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200/60 text-slate-700">
-                  Standard Employee
-                </span>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+            {/* Modal Footer Actions */}
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
               <button
                 type="button"
-                onClick={() => {
-                  const empToEdit = viewEmployee;
-                  setViewEmployee(null);
-                  setEditEmployeeData(empToEdit);
-                }}
-                className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                onClick={() => setShowAddModal(false)}
+                className="px-5 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold hover:bg-white transition-colors cursor-pointer text-slate-700"
               >
-                <Edit3 size={14} /> Edit Profile
+                Cancel
               </button>
               <button
-                type="button"
-                onClick={() => setViewEmployee(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                type="submit"
+                onClick={handleCreate}
+                disabled={isSubmitting}
+                className="px-5 py-2.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
               >
-                Close
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" /> Saving...
+                  </>
+                ) : (
+                  "Save Employee Record"
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* EDIT EMPLOYEE MODAL */}
+      {/* Edit Modal */}
       {editEmployeeData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-lg w-full space-y-5 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-800">
-                  <Edit3 size={18} />
-                </div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Edit Employee Record
-                </h2>
-              </div>
+          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-2xl w-full space-y-5 border shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Edit3 size={18} /> Edit Employee Record
+              </h2>
               <button
                 onClick={() => setEditEmployeeData(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <X size={20} />
               </button>
             </div>
-
             <form onSubmit={handleUpdate} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editEmployeeData.firstName}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        firstName: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editEmployeeData.lastName}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        lastName: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Job Title
-                  </label>
-                  <input
-                    type="text"
-                    value={editEmployeeData.jobTitle}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        jobTitle: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Office Type
-                  </label>
-                  <select
-                    value={editEmployeeData.officeType}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        officeType: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+              <EmployeeFormFields
+                formData={editEmployeeData}
+                setFormData={
+                  setEditEmployeeData as React.Dispatch<
+                    React.SetStateAction<Employee>
                   >
-                    <option value="Admin">Admin</option>
-                    <option value="Production">Production</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Daily Salary (PHP)
-                  </label>
-                  <input
-                    type="number"
-                    step="50"
-                    value={editEmployeeData.dailySalary}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        dailySalary: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Daily Allowance (PHP)
-                  </label>
-                  <input
-                    type="number"
-                    step="10"
-                    value={editEmployeeData.dailyAllowance}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        dailyAllowance: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Government Deductions Settings */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/60">
-                  <input
-                    type="checkbox"
-                    id="editHasGovToggle"
-                    checked={editEmployeeData.hasGovernmentDeductions}
-                    onChange={(e) =>
-                      setEditEmployeeData({
-                        ...editEmployeeData,
-                        hasGovernmentDeductions: e.target.checked,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
-                  />
-                  <label
-                    htmlFor="editHasGovToggle"
-                    className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
-                  >
-                    <span className="font-bold text-slate-900 block">
-                      Enable Government Contributions (Eligible)
-                    </span>
-                    When enabled, SSS, PhilHealth, and Pag-IBIG will be deducted
-                    automatically during payroll calculations.
-                  </label>
-                </div>
-
-                {editEmployeeData.hasGovernmentDeductions && (
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      Deduction Schedule Type
-                    </label>
-                    <select
-                      value={editEmployeeData.deductionType}
-                      onChange={(e) =>
-                        setEditEmployeeData({
-                          ...editEmployeeData,
-                          deductionType: e.target.value,
-                        })
-                      }
-                      disabled={isSubmitting}
-                      className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    >
-                      <option value="Per Pay Period">
-                        Per Pay Period (Split per cutoff)
-                      </option>
-                      <option value="Monthly">
-                        Full Monthly (Deducted once)
-                      </option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Admin Access Toggle Checkbox */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                <input
-                  type="checkbox"
-                  id="editIsAdminToggle"
-                  checked={editEmployeeData.isAdmin}
-                  onChange={(e) =>
-                    setEditEmployeeData({
-                      ...editEmployeeData,
-                      isAdmin: e.target.checked,
-                    })
-                  }
-                  disabled={isSubmitting}
-                  className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
-                />
-                <label
-                  htmlFor="editIsAdminToggle"
-                  className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
-                >
-                  <span className="font-bold text-slate-900 block">
-                    Grant Administrator Privileges
-                  </span>
-                  Allows staff member to manage payroll, approve leave/OT
-                  requests, and modify directory records.
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                }
+                isSubmitting={isSubmitting}
+              />
+              <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
                   onClick={() => setEditEmployeeData(null)}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 border rounded-xl font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 py-2 bg-(--primary) text-slate-950 rounded-xl font-semibold"
                 >
                   {isSubmitting ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" /> Updating...
-                    </>
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
                     "Save Changes"
                   )}
@@ -970,286 +554,6 @@ export default function EmployeeManagement() {
         </div>
       )}
 
-      {/* Add Employee Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-lg w-full space-y-5 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
-                  <UserCheck size={18} />
-                </div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Register New Employee
-                </h2>
-              </div>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.firstName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, firstName: e.target.value })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lastName: e.target.value })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Employee ID Number
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.employeeIdNumber}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        employeeIdNumber: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    placeholder="e.g. EMP-2026-001"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Login Username
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.username}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        username: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    placeholder="e.g. jdoe"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Job Title
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.jobTitle}
-                    onChange={(e) =>
-                      setFormData({ ...formData, jobTitle: e.target.value })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Office Type
-                  </label>
-                  <select
-                    value={formData.officeType}
-                    onChange={(e) =>
-                      setFormData({ ...formData, officeType: e.target.value })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                  >
-                    <option value="Admin">Admin</option>
-                    <option value="Production">Production</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Daily Salary (PHP)
-                  </label>
-                  <input
-                    type="number"
-                    step="50"
-                    value={formData.dailySalary}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        dailySalary: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Daily Allowance (PHP)
-                  </label>
-                  <input
-                    type="number"
-                    step="10"
-                    value={formData.dailyAllowance}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        dailyAllowance: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Government Deductions Settings */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/60">
-                  <input
-                    type="checkbox"
-                    id="hasGovToggle"
-                    checked={formData.hasGovernmentDeductions}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        hasGovernmentDeductions: e.target.checked,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
-                  />
-                  <label
-                    htmlFor="hasGovToggle"
-                    className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
-                  >
-                    <span className="font-bold text-slate-900 block">
-                      Enable Government Contributions (Eligible)
-                    </span>
-                    Automatically deduct SSS, PhilHealth, and Pag-IBIG during
-                    payroll computations.
-                  </label>
-                </div>
-
-                {formData.hasGovernmentDeductions && (
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      Deduction Schedule Type
-                    </label>
-                    <select
-                      value={formData.deductionType}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          deductionType: e.target.value,
-                        })
-                      }
-                      disabled={isSubmitting}
-                      className="w-full border border-slate-300 bg-white p-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
-                    >
-                      <option value="Per Pay Period">
-                        Per Pay Period (Split per cutoff)
-                      </option>
-                      <option value="Monthly">
-                        Full Monthly (Deducted once)
-                      </option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Admin Access Toggle Checkbox */}
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                <input
-                  type="checkbox"
-                  id="isAdminToggle"
-                  checked={formData.isAdmin}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isAdmin: e.target.checked })
-                  }
-                  disabled={isSubmitting}
-                  className="w-4 h-4 border-slate-300 rounded focus:ring-(--primary) cursor-pointer mt-0.5"
-                />
-                <label
-                  htmlFor="isAdminToggle"
-                  className="text-xs font-medium text-slate-700 cursor-pointer select-none leading-relaxed"
-                >
-                  <span className="font-bold text-slate-900 block">
-                    Grant Administrator Privileges
-                  </span>
-                  Allows staff member to manage payroll, approve leave/OT
-                  requests, and modify directory records.
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" /> Saving
-                      Record...
-                    </>
-                  ) : (
-                    "Save Employee Record"
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm Delete Modal */}
       <ConfirmModal
         isOpen={deleteId !== null}
         title="Delete Employee"
@@ -1260,7 +564,6 @@ export default function EmployeeManagement() {
         onClose={() => setDeleteId(null)}
       />
 
-      {/* Toast Notification */}
       <Toast
         message={toast?.text || null}
         type={toast?.type}

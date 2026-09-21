@@ -46,6 +46,7 @@ export default function Navbar() {
   const employeeId = localStorage.getItem("employeeId");
 
   useEffect(() => {
+    // If no employeeId is present in storage, skip polling to prevent failed requests
     if (!employeeId) return;
 
     const fetchCounts = async () => {
@@ -64,7 +65,7 @@ export default function Navbar() {
           Payroll: payrollRes.data || 0,
         });
       } catch {
-        // Fail silently
+        // Fail silently if endpoint errors out
       }
     };
 
@@ -128,7 +129,7 @@ export default function Navbar() {
           to: "/history",
           label: "History",
           icon: HistoryIcon,
-          showBadge: true,
+          showBadge: role !== "Admin", // Employees track payroll history; admins track via Payroll
           notificationType: "Payroll",
         },
       ],

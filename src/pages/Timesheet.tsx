@@ -42,6 +42,7 @@ interface TimeRecordItem {
   dateCreated: string;
   latitude: number;
   longitude: number;
+  isRequested: boolean;
 }
 
 interface Employee {
@@ -780,6 +781,18 @@ export default function Timesheet() {
                             lat={record.latitude}
                             lon={record.longitude}
                           />
+                          {/* Origin Badge */}
+                          <div className="mt-1">
+                            {record.isRequested ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                                Filed Request / Correction
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
+                                Direct Clock-In
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-4 px-5 text-right font-mono text-xs font-bold text-slate-900">
                           {new Date(
