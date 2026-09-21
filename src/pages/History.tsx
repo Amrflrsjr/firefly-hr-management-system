@@ -21,6 +21,18 @@ interface Employee {
 
 const ITEMS_PER_PAGE = 5;
 
+// Helper function moved outside component
+const sortHistoryNewestFirst = (data: PaySlipData[]) => {
+  return [...data].sort((a, b) => {
+    const dateA = new Date(a.payPeriodEnd).getTime();
+    const dateB = new Date(b.payPeriodEnd).getTime();
+    if (dateA !== dateB) {
+      return dateB - dateA;
+    }
+    return b.id - a.id;
+  });
+};
+
 export default function History() {
   const [history, setHistory] = useState<PaySlipData[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -28,13 +40,15 @@ export default function History() {
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "1";
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<string>(loggedInEmployeeId);
 
-  // Initialize loading based on whether we have a target ID to fetch
-  const initialTargetId =
-    role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-  const [loading, setLoading] = useState<boolean>(Boolean(initialTargetId));
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(
+    role === "Admin" ? "" : loggedInEmployeeId,
+  );
+
+  // Initialize loading to true only if a non-admin user starts with an ID
+  const [loading, setLoading] = useState<boolean>(
+    role !== "Admin" && Boolean(loggedInEmployeeId),
+  );
 
   const [viewingPaySlip, setViewingPaySlip] = useState<PaySlipData | null>(
     null,
@@ -53,18 +67,6 @@ export default function History() {
     [],
   );
 
-  // Helper to sort history so newest pay slips are at the top
-  const sortHistoryNewestFirst = (data: PaySlipData[]) => {
-    return [...data].sort((a, b) => {
-      const dateA = new Date(a.payPeriodEnd).getTime();
-      const dateB = new Date(b.payPeriodEnd).getTime();
-      if (dateA !== dateB) {
-        return dateB - dateA; // Newest date first
-      }
-      return b.id - a.id; // Fallback to highest ID if dates are identical
-    });
-  };
-
   // 1. Fetch Employee List for Admins on Mount
   useEffect(() => {
     let isMounted = true;
@@ -74,9 +76,6 @@ export default function History() {
         .then((res) => {
           if (isMounted && res.data.length > 0) {
             setEmployees(res.data);
-            setSelectedEmployee((prev) =>
-              prev === "1" ? String(res.data[0].id) : prev,
-            );
           }
         })
         .catch(() => {});
@@ -86,26 +85,28 @@ export default function History() {
     };
   }, [role]);
 
-  // 2. Fetch History when target employee changes
+  // 2. Fetch History when target employee changes (without calling setState synchronously inside)
   useEffect(() => {
     let isMounted = true;
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
 
-    if (targetId) {
-      api
-        .get(`/Payroll/history/${targetId}`)
-        .then((res) => {
-          if (isMounted) {
-            setHistory(sortHistoryNewestFirst(res.data || []));
-          }
-        })
-        .catch(() => {
-          if (isMounted) setHistory([]);
-        })
-        .finally(() => {
-          if (isMounted) setLoading(false);
-        });
+    if (!targetId) {
+      return;
     }
+
+    api
+      .get(`/Payroll/history/${targetId}`)
+      .then((res) => {
+        if (isMounted) {
+          setHistory(sortHistoryNewestFirst(res.data || []));
+        }
+      })
+      .catch(() => {
+        if (isMounted) setHistory([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
     return () => {
       isMounted = false;
@@ -119,8 +120,10 @@ export default function History() {
       showToast("Pay slip deleted successfully.");
 
       const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-      const res = await api.get(`/Payroll/history/${targetId}`);
-      setHistory(sortHistoryNewestFirst(res.data || []));
+      if (targetId) {
+        const res = await api.get(`/Payroll/history/${targetId}`);
+        setHistory(sortHistoryNewestFirst(res.data || []));
+      }
     } catch {
       showToast("Failed to delete pay slip.", "error");
     } finally {
@@ -158,12 +161,21 @@ export default function History() {
             <select
               value={selectedEmployee}
               onChange={(e) => {
-                setSelectedEmployee(e.target.value);
+                const val = e.target.value;
+                setSelectedEmployee(val);
                 setCurrentPage(1);
-                setLoading(true);
+                if (!val) {
+                  setHistory([]);
+                  setLoading(false);
+                } else {
+                  setLoading(true); // Safe update inside event handler
+                }
               }}
               className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
             >
+              <option value="" disabled>
+                Select Employee
+              </option>
               {employees.map((emp) => (
                 <option key={emp.id} value={String(emp.id)}>
                   {emp.lastName}, {emp.firstName}
@@ -200,6 +212,16 @@ export default function History() {
                   <p className="text-xs font-semibold text-slate-500">
                     Loading history records...
                   </p>
+                </td>
+              </tr>
+            ) : role === "Admin" && !selectedEmployee ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="py-12 text-center text-slate-400 text-xs font-medium"
+                >
+                  Please select an employee above to view their pay slip
+                  history.
                 </td>
               </tr>
             ) : paginatedHistory.length > 0 ? (
@@ -259,6 +281,10 @@ export default function History() {
             <p className="text-xs font-semibold text-slate-500">
               Loading history cards...
             </p>
+          </div>
+        ) : role === "Admin" && !selectedEmployee ? (
+          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs font-medium">
+            Please select an employee above to view their pay slip history.
           </div>
         ) : paginatedHistory.length > 0 ? (
           paginatedHistory.map((item) => (
