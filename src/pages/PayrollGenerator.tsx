@@ -30,6 +30,7 @@ interface Employee {
   dailyAllowance: number;
   hasGovernmentDeductions?: boolean;
   deductionType?: string;
+  isAdmin?: boolean;
 }
 
 interface PaySlipHistoryItem {
@@ -129,9 +130,13 @@ export default function PayrollGenerator() {
     api
       .get("/Employees")
       .then((res) => {
-        setEmployees(res.data);
-        if (res.data.length > 0) {
-          setSelectedEmployee(res.data[0].id);
+        // Filter out admin employees using the Employee interface
+        const nonAdminEmployees = res.data.filter(
+          (emp: Employee) => !emp.isAdmin,
+        );
+        setEmployees(nonAdminEmployees);
+        if (nonAdminEmployees.length > 0) {
+          setSelectedEmployee(nonAdminEmployees[0].id);
         }
       })
       .catch(() => {

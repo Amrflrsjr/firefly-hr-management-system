@@ -32,6 +32,7 @@ interface Employee {
   id: number;
   firstName: string;
   lastName: string;
+  isAdmin?: boolean;
 }
 
 const ITEMS_PER_PAGE = 5;
@@ -118,11 +119,17 @@ export default function Leaves() {
         try {
           const res = await api.get("/Employees");
           if (!isMounted) return;
-          setEmployees(res.data);
-          if (res.data.length > 0) {
+
+          // Filter out admin employees
+          const nonAdminEmployees = res.data.filter(
+            (emp: Employee) => !emp.isAdmin,
+          );
+
+          setEmployees(nonAdminEmployees);
+          if (nonAdminEmployees.length > 0) {
             setFormData((prev) => ({
               ...prev,
-              employeeId: String(res.data[0].id),
+              employeeId: String(nonAdminEmployees[0].id),
             }));
           }
           await loadLeaves("all");

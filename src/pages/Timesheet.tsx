@@ -49,6 +49,7 @@ interface Employee {
   id: number;
   firstName: string;
   lastName: string;
+  isAdmin?: boolean;
 }
 
 const ITEMS_PER_PAGE = 5;
@@ -266,7 +267,12 @@ export default function Timesheet() {
           const res = await api.get("/Employees");
           if (!isMounted) return;
 
-          setEmployees(res.data);
+          // Filter out admin employees
+          const nonAdminEmployees = res.data.filter(
+            (emp: Employee) => !emp.isAdmin,
+          );
+
+          setEmployees(nonAdminEmployees);
           const currentSelected = selectedEmployee || "all";
           await fetchTimesheetData(currentSelected, filterDate);
         } catch {

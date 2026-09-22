@@ -18,6 +18,7 @@ interface Employee {
   id: number;
   firstName: string;
   lastName: string;
+  isAdmin?: boolean;
 }
 
 const ITEMS_PER_PAGE = 5;
@@ -69,6 +70,7 @@ export default function History() {
   );
 
   // 1. Fetch Employee List for Admins on Mount
+  // 1. Fetch Employee List for Admins on Mount
   useEffect(() => {
     let isMounted = true;
     if (role === "Admin") {
@@ -76,7 +78,11 @@ export default function History() {
         .get("/Employees")
         .then((res) => {
           if (isMounted && res.data.length > 0) {
-            setEmployees(res.data);
+            // Filter out admin employees
+            const nonAdminEmployees = res.data.filter(
+              (emp: Employee) => !emp.isAdmin,
+            );
+            setEmployees(nonAdminEmployees);
           }
         })
         .catch(() => {});

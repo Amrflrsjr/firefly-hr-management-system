@@ -124,6 +124,8 @@ export default function EmployeeManagement() {
   const [formData, setFormData] = useState(initialFormState);
   const navigate = useNavigate();
 
+  const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
+
   const showToast = useCallback(
     (text: string, type: "success" | "error" = "success") => {
       setToast({ text, type });
@@ -268,6 +270,9 @@ export default function EmployeeManagement() {
 
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
+      // Exclude the currently logged-in user from the directory list
+      if (emp.id.toString() === loggedInEmployeeId) return false;
+
       const query = searchQuery.toLowerCase();
       const matchesSearch =
         emp.firstName.toLowerCase().includes(query) ||
@@ -280,7 +285,7 @@ export default function EmployeeManagement() {
       if (activeTab === "staff") return matchesSearch && !emp.isAdmin;
       return matchesSearch;
     });
-  }, [employees, searchQuery, activeTab]);
+  }, [employees, searchQuery, activeTab, loggedInEmployeeId]);
 
   const totalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
   const paginatedEmployees = useMemo(() => {
@@ -327,16 +332,26 @@ export default function EmployeeManagement() {
         <div className="flex border-b border-slate-200 gap-8 px-2">
           {(
             [
-              { key: "all", label: "All Employees", count: employees.length },
+              {
+                key: "all",
+                label: "All Employees",
+                count: employees.filter(
+                  (e) => e.id.toString() !== loggedInEmployeeId,
+                ).length,
+              },
               {
                 key: "admin",
                 label: "Admins",
-                count: employees.filter((e) => e.isAdmin).length,
+                count: employees.filter(
+                  (e) => e.isAdmin && e.id.toString() !== loggedInEmployeeId,
+                ).length,
               },
               {
                 key: "staff",
                 label: "Staff",
-                count: employees.filter((e) => !e.isAdmin).length,
+                count: employees.filter(
+                  (e) => !e.isAdmin && e.id.toString() !== loggedInEmployeeId,
+                ).length,
               },
             ] as const
           ).map((tab) => (
