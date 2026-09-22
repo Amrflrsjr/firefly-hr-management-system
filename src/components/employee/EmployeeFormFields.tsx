@@ -22,15 +22,15 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
   };
 
   return (
-    <div className="space-y-6 text-xs pb-4">
+    <div className="space-y-5 text-xs">
       {/* SECTION 1: Account Credentials & Security */}
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-        <h3 className="font-bold uppercase tracking-wider text-[11px] text-amber-800 border-b pb-1.5 flex items-center justify-between">
-          <span>1. Account Credentials & Security</span>
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
+          1. Account Credentials & Security
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Employee ID Number *
             </label>
             <input
@@ -40,12 +40,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="e.g. EMP-2026-001"
-              className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold bg-white focus:ring-2 focus:ring-(--primary) focus:outline-none"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Login Username *
             </label>
             <input
@@ -55,13 +55,13 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="e.g. jdoe"
-              className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold bg-white focus:ring-2 focus:ring-(--primary) focus:outline-none"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Initial Password (System Default)
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Initial Password
             </label>
             <div className="w-full border border-slate-200 bg-slate-100 p-2.5 rounded-xl font-mono font-bold text-slate-600 flex items-center justify-between select-none">
               <span>firefly2026</span>
@@ -71,7 +71,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </div>
           </div>
         </div>
-        <div className="pt-1">
+        <div>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -93,13 +93,13 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
       </div>
 
       {/* SECTION 2: Personal Information */}
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-        <h3 className="font-bold uppercase tracking-wider text-[11px] text-amber-800 border-b pb-1.5">
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
           2. Personal Information
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               First Name *
             </label>
             <input
@@ -108,12 +108,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.firstName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold bg-white"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Middle Name
             </label>
             <input
@@ -122,11 +122,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.middleName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold bg-white"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Last Name *
             </label>
             <input
@@ -135,7 +135,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.lastName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold bg-white"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
@@ -143,7 +143,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Date of Birth
             </label>
             <input
@@ -152,11 +152,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.dateOfBirth?.split("T")[0] || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Age
             </label>
             <input
@@ -170,11 +170,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
                 }))
               }
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Gender
             </label>
             <select
@@ -182,14 +182,14 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.gender || "Male"}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             >
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Civil Status
             </label>
             <select
@@ -197,7 +197,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.civilStatus || "Single"}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             >
               <option value="Single">Single</option>
               <option value="Married">Married</option>
@@ -208,7 +208,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Blood Type
             </label>
             <select
@@ -216,7 +216,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.bloodType || "O+"}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             >
               <option value="O+">O+</option>
               <option value="O-">O-</option>
@@ -229,7 +229,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Photo URL / Identifier
             </label>
             <input
@@ -239,20 +239,20 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="e.g. profile.jpg"
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
         </div>
       </div>
 
       {/* SECTION 3: Contact & Addresses */}
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-        <h3 className="font-bold uppercase tracking-wider text-[11px] text-amber-800 border-b pb-1.5">
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
           3. Contact & Addresses
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Contact Number
             </label>
             <input
@@ -262,11 +262,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="09XXXXXXXXX"
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Personal Email Address
             </label>
             <input
@@ -276,12 +276,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="email@example.com"
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
             Current Address
           </label>
           <input
@@ -290,11 +290,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             value={formData.currentAddress || ""}
             onChange={handleChange}
             disabled={isSubmitting}
-            className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+            className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
           />
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
             Permanent Address
           </label>
           <input
@@ -303,19 +303,19 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             value={formData.permanentAddress || ""}
             onChange={handleChange}
             disabled={isSubmitting}
-            className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+            className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
           />
         </div>
       </div>
 
       {/* SECTION 4: Employment & Position Details */}
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-        <h3 className="font-bold uppercase tracking-wider text-[11px] text-amber-800 border-b pb-1.5">
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
           4. Employment & Position Details
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Job Title *
             </label>
             <input
@@ -324,12 +324,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.jobTitle || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Employment Type
             </label>
             <input
@@ -338,11 +338,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.employmentType || "Regular"}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Employment Status
             </label>
             <select
@@ -350,7 +350,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.employmentStatus || "Active"}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             >
               <option value="Active">Active</option>
               <option value="Resigned">Resigned</option>
@@ -362,7 +362,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Office Type
             </label>
             <select
@@ -370,14 +370,14 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.officeType || "Admin"}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             >
               <option value="Admin">Admin</option>
               <option value="Production">Production</option>
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Date Hired
             </label>
             <input
@@ -386,11 +386,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.dateHired?.split("T")[0] || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Declared Date Hired
             </label>
             <input
@@ -399,20 +399,20 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.declaredDateHired?.split("T")[0] || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
             />
           </div>
         </div>
       </div>
 
       {/* SECTION 5: Compensation & Statutory */}
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-        <h3 className="font-bold uppercase tracking-wider text-[11px] text-amber-800 border-b pb-1.5">
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
           5. Compensation & Statutory Contributions
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Daily Salary (PHP) *
             </label>
             <input
@@ -427,12 +427,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
                 }))
               }
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 bg-white font-mono font-bold rounded-xl"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-bold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Daily Allowance (PHP) *
             </label>
             <input
@@ -447,7 +447,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
                 }))
               }
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 bg-white font-mono font-bold rounded-xl"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-bold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               required
             />
           </div>
@@ -470,7 +470,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             >
               Enable Government Contributions (Eligible)
             </label>
-            <p className="text-[10px] text-slate-500 font-medium">
+            <p className="text-[11px] text-slate-500 font-medium">
               Automatically compute SSS, PhilHealth, and Pag-IBIG.
             </p>
           </div>
@@ -479,7 +479,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
         {formData.hasGovernmentDeductions && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 SSS Number
               </label>
               <input
@@ -488,11 +488,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
                 value={formData.sssNumber || ""}
                 onChange={handleChange}
                 disabled={isSubmitting}
-                className="w-full border border-slate-300 p-2 rounded-xl bg-white font-mono font-semibold"
+                className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 PhilHealth Number
               </label>
               <input
@@ -501,11 +501,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
                 value={formData.philHealthNumber || ""}
                 onChange={handleChange}
                 disabled={isSubmitting}
-                className="w-full border border-slate-300 p-2 rounded-xl bg-white font-mono font-semibold"
+                className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                 Pag-IBIG Number
               </label>
               <input
@@ -514,14 +514,14 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
                 value={formData.pagIbigNumber || ""}
                 onChange={handleChange}
                 disabled={isSubmitting}
-                className="w-full border border-slate-300 p-2 rounded-xl bg-white font-mono font-semibold"
+                className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
               />
             </div>
           </div>
         )}
 
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
             Deduction Schedule Type
           </label>
           <select
@@ -529,7 +529,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             value={formData.deductionType || "Per Pay Period"}
             onChange={handleChange}
             disabled={isSubmitting}
-            className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+            className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
           >
             <option value="Per Pay Period">
               Per Pay Period (Split per cutoff)
@@ -540,13 +540,13 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
       </div>
 
       {/* SECTION 6: Emergency Contact */}
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-        <h3 className="font-bold uppercase tracking-wider text-[11px] text-amber-800 border-b pb-1.5">
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
           6. Emergency Contact Details
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Contact Name
             </label>
             <input
@@ -555,11 +555,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.emergencyContactName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Contact Number
             </label>
             <input
@@ -568,11 +568,11 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.emergencyContactNumber || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Relation
             </label>
             <input
@@ -581,12 +581,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               value={formData.relationToEmployee || ""}
               onChange={handleChange}
               disabled={isSubmitting}
-              className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
             />
           </div>
         </div>
         <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
             Emergency Address
           </label>
           <input
@@ -595,7 +595,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             value={formData.emergencyContactAddress || ""}
             onChange={handleChange}
             disabled={isSubmitting}
-            className="w-full border border-slate-300 p-2.5 rounded-xl bg-white font-semibold"
+            className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
           />
         </div>
       </div>

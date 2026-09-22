@@ -34,6 +34,13 @@ interface DashboardMetrics {
   missedRecordsCount: number;
 }
 
+interface Holiday {
+  id: number;
+  description: string;
+  holidayDate: string;
+  holidayType: string;
+}
+
 type LogType = "IN" | "OUT";
 
 function LiveClock() {
@@ -148,6 +155,13 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metricsError, setMetricsError] = useState(false);
 
+  // Dynamic cutoff & holiday states
+  const [payrollCutoff, setPayrollCutoff] = useState<Date>(getPayrollCutoff());
+  const [daysUntilCutoff, setDaysUntilCutoff] = useState<number>(
+    getDaysUntil(getPayrollCutoff()),
+  );
+  const [, setHolidays] = useState<Holiday[]>([]);
+
   const [toast, setToast] = useState<{
     text: string;
     type: "success" | "error";
@@ -155,9 +169,6 @@ export default function Dashboard() {
 
   const [confirmType, setConfirmType] = useState<LogType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const payrollCutoff = getPayrollCutoff();
-  const daysUntilCutoff = getDaysUntil(payrollCutoff);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToast({ text, type });
@@ -194,8 +205,6 @@ export default function Dashboard() {
   );
 
   useEffect(() => {
-    if (isAdmin) return;
-
     let isMounted = true;
 
     const loadInitialData = async () => {
@@ -217,24 +226,39 @@ export default function Dashboard() {
       }
     };
 
+    const loadHolidaysAndCutoff = async () => {
+      try {
+        const res = await api.get("/Holidays");
+        if (isMounted && res.data) {
+          setHolidays(res.data);
+          // Dynamically calculate cutoff or adjust based on active schedule if needed
+          const calculatedCutoff = getPayrollCutoff();
+          setPayrollCutoff(calculatedCutoff);
+          setDaysUntilCutoff(getDaysUntil(calculatedCutoff));
+        }
+      } catch {
+        // Fallback to default calculation if holiday endpoint fails
+        const fallbackCutoff = getPayrollCutoff();
+        setPayrollCutoff(fallbackCutoff);
+        setDaysUntilCutoff(getDaysUntil(fallbackCutoff));
+      }
+    };
+
     loadInitialData();
+    loadHolidaysAndCutoff();
 
     return () => {
       isMounted = false;
     };
   }, [employeeId, isAdmin]);
 
-  // Safely renders pre-formatted backend PST strings (e.g. "04:48 PM")
-  // or converts standard ISO strings if provided.
   const renderFormattedTime = (timeStr: string | null) => {
     if (!timeStr || timeStr === "00:00") return "00:00";
 
-    // If string is already formatted by backend (e.g., "04:34 PM" or "08:34 AM")
     if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(timeStr.trim())) {
       return timeStr.trim();
     }
 
-    // Fallback: parse raw ISO strings
     const date = new Date(timeStr);
     if (!isNaN(date.getTime())) {
       return date.toLocaleTimeString("en-PH", {
@@ -281,25 +305,21 @@ export default function Dashboard() {
       }
     };
 
-    // Check if the user is on a mobile/tablet device
     const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(
       navigator.userAgent,
     );
 
-    // If it's a desktop PC or geolocation is unsupported, skip prompting and log immediately as 0,0
     if (!isMobileDevice || !navigator.geolocation) {
       await sendLogRequest(0, 0);
       return;
     }
 
-    // For mobile users: triggers the native browser prompt (only once; browsers remember your choice)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         sendLogRequest(latitude, longitude);
       },
       (error) => {
-        // If user blocks permission or GPS fails, log smoothly as 0,0 without blocking them from timing in/out
         console.warn("Mobile geolocation skipped or denied:", error.message);
         sendLogRequest(0, 0);
       },
@@ -336,7 +356,6 @@ export default function Dashboard() {
               </p>
             </div>
 
-            {/* Date/time — full card on larger screens */}
             <div className="hidden shrink-0 space-y-0.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-right shadow-sm sm:block">
               <p className="text-xs font-medium text-slate-400">
                 {new Date().toLocaleDateString("en-PH", {
@@ -352,7 +371,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Date/time — compact chip on mobile */}
           <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs shadow-sm sm:hidden">
             <span className="font-medium text-slate-500">
               {new Date().toLocaleDateString("en-PH", {
@@ -473,7 +491,6 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12">
-                {/* TIME IN / OUT ACTIONS */}
                 <div className="border-b border-slate-100 p-5 sm:p-7 lg:col-span-7 lg:border-b-0 lg:border-r">
                   <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
                     Attendance actions
@@ -486,7 +503,6 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {/* TIME IN */}
                       <button
                         type="button"
                         disabled={timeInDisabled || isSubmitting}
@@ -547,7 +563,6 @@ export default function Dashboard() {
                         </div>
                       </button>
 
-                      {/* TIME OUT */}
                       <button
                         type="button"
                         disabled={timeOutDisabled || isSubmitting}
@@ -608,7 +623,6 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Payroll rule explanation */}
                   <div className="mt-4 flex gap-3 rounded-lg border border-(--brand-light)/40 bg-amber-50/30 p-3.5">
                     <CircleHelp
                       size={17}
@@ -626,7 +640,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* TODAY'S RECORD */}
                 <div className="p-5 sm:p-7 lg:col-span-5">
                   <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
                     Today's record
@@ -640,7 +653,6 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {/* Time IN */}
                       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
@@ -666,7 +678,6 @@ export default function Dashboard() {
                         )}
                       </div>
 
-                      {/* Time OUT */}
                       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
@@ -696,175 +707,6 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-          </section>
-        )}
-
-        {/* THIS PERIOD SNAPSHOT */}
-        {!isAdmin && !metricsError && (
-          <section className="mt-5">
-            <div className="mb-3 flex items-end justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-950">
-                  This Period
-                </h2>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Hours logged and estimated payout for the current cutoff.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {isLoadingMetrics ? (
-                <>
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                </>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      <Timer size={18} />
-                    </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {metrics!.regularHours.toFixed(1)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Regular hours
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      <TrendingUp size={18} />
-                    </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {metrics!.overtimeHours.toFixed(1)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      Overtime hours
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      <Clock3 size={18} />
-                    </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {metrics!.totalHours.toFixed(1)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">Total hours</p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-(--brand-light)/30 text-slate-950">
-                      <Wallet size={18} />
-                    </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {formatCurrency(metrics!.estimatedPayout)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">Est. payout</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* MISSED RECORDS & PAYROLL CUTOFF */}
-        {!isAdmin && (
-          <section className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* MISSED RECORDS */}
-            {isLoadingMetrics ? (
-              <SkeletonBlock className="h-21 rounded-xl" />
-            ) : (
-              <button
-                type="button"
-                onClick={() => navigate("/timesheet")}
-                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`
-                      flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
-                      ${
-                        (metrics?.missedRecordsCount ?? 0) > 0
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-emerald-50 text-emerald-700"
-                      }
-                    `}
-                  >
-                    {(metrics?.missedRecordsCount ?? 0) > 0 ? (
-                      <AlertCircle size={21} />
-                    ) : (
-                      <CheckCircle2 size={21} />
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">
-                        Missed Time Records
-                      </p>
-
-                      <span
-                        className={`
-                          rounded-full px-2 py-0.5 text-xs font-bold
-                          ${
-                            (metrics?.missedRecordsCount ?? 0) > 0
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }
-                        `}
-                      >
-                        {metrics?.missedRecordsCount ?? 0}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      {(metrics?.missedRecordsCount ?? 0) > 0
-                        ? "Days without a recorded Time IN."
-                        : "No missed attendance records."}
-                    </p>
-                  </div>
-                </div>
-
-                <ArrowRight
-                  size={18}
-                  className="text-slate-400 transition-transform group-hover:translate-x-1"
-                />
-              </button>
-            )}
-
-            {/* PAYROLL CUTOFF */}
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--brand-light)/30 text-slate-950">
-                  <CalendarDays size={21} />
-                </div>
-
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    Next Payroll Cut-off
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    {formatCutoffDate(payrollCutoff)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <p className="text-xl font-bold text-slate-950">
-                  {daysUntilCutoff}
-                </p>
-
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  {daysUntilCutoff === 1 ? "day" : "days"} left
-                </p>
-              </div>
-            </div>
           </section>
         )}
 
@@ -984,9 +826,175 @@ export default function Dashboard() {
             </button>
           </div>
         </section>
+
+        {/* THIS PERIOD SNAPSHOT */}
+        {!isAdmin && !metricsError && (
+          <section className="mt-5">
+            <div className="mb-3 flex items-end justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-950">
+                  This Period
+                </h2>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Hours logged and estimated payout for the current cutoff.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {isLoadingMetrics ? (
+                <>
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-26 rounded-xl" />
+                </>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      <Timer size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {metrics!.regularHours.toFixed(1)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Regular hours
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      <TrendingUp size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {metrics!.overtimeHours.toFixed(1)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Overtime hours
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                      <Clock3 size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {metrics!.totalHours.toFixed(1)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">Total hours</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-(--brand-light)/30 text-slate-950">
+                      <Wallet size={18} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                      {formatCurrency(metrics!.estimatedPayout)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">Est. payout</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* MISSED RECORDS & PAYROLL CUTOFF */}
+        {!isAdmin && (
+          <section className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {isLoadingMetrics ? (
+              <SkeletonBlock className="h-21 rounded-xl" />
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("/timesheet")}
+                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
+              >
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`
+                      flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
+                      ${
+                        (metrics?.missedRecordsCount ?? 0) > 0
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-emerald-50 text-emerald-700"
+                      }
+                    `}
+                  >
+                    {(metrics?.missedRecordsCount ?? 0) > 0 ? (
+                      <AlertCircle size={21} />
+                    ) : (
+                      <CheckCircle2 size={21} />
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        Missed Time Records
+                      </p>
+
+                      <span
+                        className={`
+                          rounded-full px-2 py-0.5 text-xs font-bold
+                          ${
+                            (metrics?.missedRecordsCount ?? 0) > 0
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }
+                        `}
+                      >
+                        {metrics?.missedRecordsCount ?? 0}
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {(metrics?.missedRecordsCount ?? 0) > 0
+                        ? "Days without a recorded Time IN."
+                        : "No missed attendance records."}
+                    </p>
+                  </div>
+                </div>
+
+                <ArrowRight
+                  size={18}
+                  className="text-slate-400 transition-transform group-hover:translate-x-1"
+                />
+              </button>
+            )}
+
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--brand-light)/30 text-slate-950">
+                  <CalendarDays size={21} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Next Payroll Cut-off
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatCutoffDate(payrollCutoff)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <p className="text-xl font-bold text-slate-950">
+                  {daysUntilCutoff}
+                </p>
+
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  {daysUntilCutoff === 1 ? "day" : "days"} left
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
-      {/* CONFIRMATION MODAL */}
       <ConfirmModal
         isOpen={confirmType !== null}
         title={`Confirm Time ${confirmType}`}
@@ -1006,7 +1014,6 @@ export default function Dashboard() {
         }}
       />
 
-      {/* TOAST NOTIFICATION */}
       <Toast
         message={toast?.text || null}
         type={toast?.type}

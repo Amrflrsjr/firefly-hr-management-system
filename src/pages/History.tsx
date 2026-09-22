@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCheck,
+  ChevronDown,
 } from "lucide-react";
 import api from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
@@ -85,7 +86,7 @@ export default function History() {
     };
   }, [role]);
 
-  // 2. Fetch History when target employee changes (without calling setState synchronously inside)
+  // 2. Fetch History when target employee changes
   useEffect(() => {
     let isMounted = true;
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
@@ -138,227 +139,254 @@ export default function History() {
   }, [history, currentPage]);
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-      {/* Header Panel */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
-              <FileText size={20} />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="space-y-5">
+        {/* Page Header */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
+            <FileText size={18} />
+          </div>
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
               Pay Slip History
             </h1>
-          </div>
-          <p className="text-xs font-medium text-slate-500 mt-1">
-            View past computed pay slips and earnings records.
-          </p>
-        </div>
-
-        {/* Timesheet-style Employee Selection Dropdown */}
-        {role === "Admin" && employees.length > 0 && (
-          <div className="relative w-full sm:w-56">
-            <select
-              value={selectedEmployee}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedEmployee(val);
-                setCurrentPage(1);
-                if (!val) {
-                  setHistory([]);
-                  setLoading(false);
-                } else {
-                  setLoading(true); // Safe update inside event handler
-                }
-              }}
-              className="w-full appearance-none border border-slate-200 bg-slate-50 hover:bg-slate-100/80 px-3 py-2 pr-8 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) focus:bg-white cursor-pointer"
-            >
-              <option value="" disabled>
-                Select Employee
-              </option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={String(emp.id)}>
-                  {emp.lastName}, {emp.firstName}
-                </option>
-              ))}
-            </select>
-            <UserCheck
-              size={14}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Desktop History Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              <th className="py-3.5 px-5">Pay Period</th>
-              <th className="py-3.5 px-5">Period End Date</th>
-              <th className="py-3.5 px-5 text-right">Net Receivable</th>
-              <th className="py-3.5 px-5 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {loading ? (
-              <tr>
-                <td colSpan={4} className="py-12 text-center text-slate-400">
-                  <Loader2
-                    size={24}
-                    className="animate-spin text-amber-600 mx-auto mb-2"
-                  />
-                  <p className="text-xs font-semibold text-slate-500">
-                    Loading history records...
-                  </p>
-                </td>
-              </tr>
-            ) : role === "Admin" && !selectedEmployee ? (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="py-12 text-center text-slate-400 text-xs font-medium"
-                >
-                  Please select an employee above to view their pay slip
-                  history.
-                </td>
-              </tr>
-            ) : paginatedHistory.length > 0 ? (
-              paginatedHistory.map((item) => (
-                <tr
-                  key={item.id}
-                  className="hover:bg-slate-50/60 transition-colors"
-                >
-                  <td className="py-4 px-5 font-bold text-slate-900">
-                    {item.payPeriod}
-                  </td>
-                  <td className="py-4 px-5 text-slate-600 text-xs font-medium">
-                    {new Date(item.payPeriodEnd).toLocaleDateString()}
-                  </td>
-                  <td className="py-4 px-5 text-right font-mono font-bold text-amber-800">
-                    PHP {item.netReceivable.toFixed(2)}
-                  </td>
-                  <td className="py-4 px-5 text-right space-x-1">
-                    <button
-                      onClick={() => setViewingPaySlip(item)}
-                      className="text-slate-400 hover:text-amber-600 p-1.5 rounded-lg hover:bg-amber-50 transition-colors"
-                      title="View Details"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    {role === "Admin" && (
-                      <button
-                        onClick={() => setDeleteId(item.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
-                        title="Delete Pay Slip"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="py-12 text-center text-slate-400 text-xs"
-                >
-                  No pay slip history available for this employee.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile History Card View */}
-      <div className="grid grid-cols-1 gap-3 md:hidden">
-        {loading ? (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
-            <Loader2 size={24} className="animate-spin text-blue-600 mx-auto" />
-            <p className="text-xs font-semibold text-slate-500">
-              Loading history cards...
+            <p className="text-xs text-slate-500 mt-0.5">
+              View past computed pay slips and earnings records.
             </p>
           </div>
-        ) : role === "Admin" && !selectedEmployee ? (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs font-medium">
-            Please select an employee above to view their pay slip history.
-          </div>
-        ) : paginatedHistory.length > 0 ? (
-          paginatedHistory.map((item) => (
-            <div
-              key={item.id}
-              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3"
-            >
-              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">
-                    {item.payPeriod}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    End: {new Date(item.payPeriodEnd).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setViewingPaySlip(item)}
-                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+        </div>
+
+        {/* Main History Workspace Card */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          {/* Employee Selection Bar (For Admins) */}
+          {role === "Admin" && employees.length > 0 && (
+            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50">
+              <div className="max-w-md">
+                <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2 flex items-center gap-1.5">
+                  <UserCheck size={13} className="text-slate-400" />
+                  Select Employee
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedEmployee(val);
+                      setCurrentPage(1);
+                      if (!val) {
+                        setHistory([]);
+                        setLoading(false);
+                      } else {
+                        setLoading(true);
+                      }
+                    }}
+                    className="w-full h-11 appearance-none border border-slate-300 bg-white px-3 pr-10 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
                   >
-                    <Eye size={16} />
-                  </button>
-                  {role === "Admin" && (
-                    <button
-                      onClick={() => setDeleteId(item.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                    <option value="" disabled>
+                      Select an employee...
+                    </option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={String(emp.id)}>
+                        {emp.lastName}, {emp.firstName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  />
                 </div>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-slate-500">
-                  Net Receivable:
-                </span>
-                <span className="font-mono font-bold text-blue-600 text-sm">
-                  PHP {item.netReceivable.toFixed(2)}
-                </span>
               </div>
             </div>
-          ))
-        ) : (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
-            No pay slip history available.
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40"
-            >
-              <ChevronRight size={16} />
-            </button>
+          {/* Desktop History Table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                  <th className="py-3.5 px-6">Pay Period</th>
+                  <th className="py-3.5 px-6">Period End Date</th>
+                  <th className="py-3.5 px-6 text-right">Net Receivable</th>
+                  <th className="py-3.5 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="py-12 text-center text-slate-400"
+                    >
+                      <Loader2
+                        size={22}
+                        className="animate-spin text-amber-600 mx-auto mb-2"
+                      />
+                      <p className="text-xs font-semibold text-slate-500">
+                        Loading history records...
+                      </p>
+                    </td>
+                  </tr>
+                ) : role === "Admin" && !selectedEmployee ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="py-12 text-center text-slate-400 text-xs font-medium"
+                    >
+                      Please select an employee above to view their pay slip
+                      history.
+                    </td>
+                  </tr>
+                ) : paginatedHistory.length > 0 ? (
+                  paginatedHistory.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-slate-50/60 transition-colors"
+                    >
+                      <td className="py-4 px-6 font-semibold text-slate-900 text-xs">
+                        {item.payPeriod}
+                      </td>
+                      <td className="py-4 px-6 text-slate-600 text-xs font-medium">
+                        {new Date(item.payPeriodEnd).toLocaleDateString()}
+                      </td>
+                      <td className="py-4 px-6 text-right font-mono font-bold text-slate-900 text-xs">
+                        ₱
+                        {item.netReceivable.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td className="py-4 px-6 text-right space-x-1">
+                        <button
+                          onClick={() => setViewingPaySlip(item)}
+                          className="text-slate-400 hover:text-amber-700 p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer"
+                          title="View Details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {role === "Admin" && (
+                          <button
+                            onClick={() => setDeleteId(item.id)}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Delete Pay Slip"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="py-12 text-center text-slate-400 text-xs"
+                    >
+                      No pay slip history available for this employee.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
+
+          {/* Mobile History Card View */}
+          <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
+            {loading ? (
+              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 space-y-2">
+                <Loader2
+                  size={22}
+                  className="animate-spin text-amber-600 mx-auto"
+                />
+                <p className="text-xs font-semibold text-slate-500">
+                  Loading history cards...
+                </p>
+              </div>
+            ) : role === "Admin" && !selectedEmployee ? (
+              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs font-medium">
+                Please select an employee above to view their pay slip history.
+              </div>
+            ) : paginatedHistory.length > 0 ? (
+              paginatedHistory.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3"
+                >
+                  <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-xs">
+                        {item.payPeriod}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        End: {new Date(item.payPeriodEnd).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setViewingPaySlip(item)}
+                        className="p-1.5 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg cursor-pointer"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      {role === "Admin" && (
+                        <button
+                          onClick={() => setDeleteId(item.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-semibold text-slate-500">
+                      Net Receivable:
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">
+                      ₱
+                      {item.netReceivable.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
+                No pay slip history available.
+              </div>
+            )}
+          </div>
+
+          {/* Pagination Controls Footer */}
+          {totalPages > 1 && (
+            <div className="p-4 bg-slate-50/60 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <PaySlipModal
         isOpen={viewingPaySlip !== null}

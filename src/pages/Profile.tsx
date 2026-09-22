@@ -161,7 +161,7 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
         <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
         <p className="text-xs font-semibold text-slate-500">
           Loading profile details...
@@ -175,7 +175,7 @@ export default function Profile() {
     : "AD";
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 pb-16">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 pb-16">
       {toast && (
         <Toast
           message={toast.message}
@@ -201,9 +201,9 @@ export default function Profile() {
       />
 
       {/* Hero Profile Identity Header */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-(--primary) text-slate-950 font-bold text-xl sm:text-2xl flex items-center justify-center shadow-md shrink-0">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-(--primary) text-slate-950 font-bold text-xl sm:text-2xl flex items-center justify-center shadow-sm shrink-0">
             {userInitials}
           </div>
           <div className="space-y-1">
@@ -213,7 +213,7 @@ export default function Profile() {
                   ? "System Administrator"
                   : `${employee?.firstName} ${employee?.lastName}`}
               </h1>
-              <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-800 font-bold rounded-md border border-amber-200/60 uppercase">
+              <span className="text-[11px] px-2.5 py-1 bg-amber-50 text-amber-800 font-semibold rounded-md border border-amber-200/60 uppercase">
                 {role}
               </span>
             </div>
@@ -228,7 +228,7 @@ export default function Profile() {
 
         {!isSuperAdmin && (
           <div className="w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
               Employee ID
             </span>
             <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 mt-0.5">
@@ -246,7 +246,7 @@ export default function Profile() {
             onClick={() => setActiveTab("info")}
             className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "info"
-                ? "border-(--primary) text-amber-900 font-extrabold"
+                ? "border-(--primary) text-amber-900"
                 : "border-transparent text-slate-400 hover:text-slate-700"
             }`}
           >
@@ -257,7 +257,7 @@ export default function Profile() {
             onClick={() => setActiveTab("security")}
             className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "security"
-                ? "border-(--primary) text-amber-900 font-extrabold"
+                ? "border-(--primary) text-amber-900"
                 : "border-transparent text-slate-400 hover:text-slate-700"
             }`}
           >
@@ -268,11 +268,8 @@ export default function Profile() {
 
       {/* Content Panels */}
       {isSuperAdmin ? (
-        <form
-          onSubmit={handlePasswordSubmit}
-          className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5"
-        >
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
               <KeyRound size={18} />
             </div>
@@ -281,109 +278,114 @@ export default function Profile() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                Current Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showCurrentPassword ? "text" : "password"}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                >
-                  {showCurrentPassword ? (
-                    <EyeOff size={15} />
-                  ) : (
-                    <Eye size={15} />
-                  )}
-                </button>
+          <form
+            onSubmit={handlePasswordSubmit}
+            className="p-5 sm:p-6 space-y-4"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Current Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 bg-white p-2.5 pr-10 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff size={15} />
+                    ) : (
+                      <Eye size={15} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 bg-white p-2.5 pr-10 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 bg-white p-2.5 pr-10 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff size={15} />
+                    ) : (
+                      <Eye size={15} />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                New Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showNewPassword ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                >
-                  {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
+            <div className="flex justify-end pt-4 border-t border-slate-100">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="py-2 px-5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Updating...
+                  </>
+                ) : (
+                  "Update Admin Password"
+                )}
+              </button>
             </div>
-
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff size={15} />
-                  ) : (
-                    <Eye size={15} />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" /> Updating...
-                </>
-              ) : (
-                "Update Admin Password"
-              )}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       ) : (
         employee && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {activeTab === "info" ? (
-              <form onSubmit={handleProfileSubmit} className="space-y-6">
+              <form onSubmit={handleProfileSubmit} className="space-y-5">
                 {/* Account & Personal Information */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                       <IdCard size={18} />
                     </div>
@@ -392,9 +394,9 @@ export default function Profile() {
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Username
                       </label>
                       <input
@@ -403,13 +405,13 @@ export default function Profile() {
                         value={employee.username || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         First Name
                       </label>
                       <input
@@ -418,13 +420,13 @@ export default function Profile() {
                         value={employee.firstName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Middle Name
                       </label>
                       <input
@@ -433,12 +435,12 @@ export default function Profile() {
                         value={employee.middleName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Last Name
                       </label>
                       <input
@@ -447,13 +449,13 @@ export default function Profile() {
                         value={employee.lastName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Job Title
                       </label>
                       <input
@@ -462,12 +464,12 @@ export default function Profile() {
                         value={employee.jobTitle || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Gender
                       </label>
                       <select
@@ -475,7 +477,7 @@ export default function Profile() {
                         value={employee.gender || "Male"}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer disabled:bg-slate-50"
                       >
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -483,7 +485,7 @@ export default function Profile() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Civil Status
                       </label>
                       <select
@@ -491,7 +493,7 @@ export default function Profile() {
                         value={employee.civilStatus || "Single"}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer disabled:bg-slate-50"
                       >
                         <option value="Single">Single</option>
                         <option value="Married">Married</option>
@@ -500,7 +502,7 @@ export default function Profile() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Blood Type
                       </label>
                       <input
@@ -509,12 +511,12 @@ export default function Profile() {
                         value={employee.bloodType || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Age
                       </label>
                       <input
@@ -523,15 +525,15 @@ export default function Profile() {
                         value={employee.age || 0}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Contact & Address */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                       <Phone size={18} />
                     </div>
@@ -540,9 +542,9 @@ export default function Profile() {
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Contact Number
                       </label>
                       <div className="relative">
@@ -552,7 +554,7 @@ export default function Profile() {
                           value={employee.contactNumber || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full border border-slate-300 bg-white p-2.5 pl-9 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         />
                         <Phone
                           size={15}
@@ -562,7 +564,7 @@ export default function Profile() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Personal Email Address
                       </label>
                       <div className="relative">
@@ -572,7 +574,7 @@ export default function Profile() {
                           value={employee.personalEmailAddress || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full border border-slate-300 bg-white p-2.5 pl-9 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         />
                         <Mail
                           size={15}
@@ -582,7 +584,7 @@ export default function Profile() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Current Address
                       </label>
                       <div className="relative">
@@ -592,7 +594,7 @@ export default function Profile() {
                           value={employee.currentAddress || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full border border-slate-300 bg-white p-2.5 pl-9 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         />
                         <MapPin
                           size={15}
@@ -602,7 +604,7 @@ export default function Profile() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Permanent Address
                       </label>
                       <div className="relative">
@@ -612,7 +614,7 @@ export default function Profile() {
                           value={employee.permanentAddress || ""}
                           onChange={handleChange}
                           disabled={isSubmitting}
-                          className="w-full p-2.5 pl-9 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                          className="w-full border border-slate-300 bg-white p-2.5 pl-9 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                         />
                         <MapPin
                           size={15}
@@ -624,8 +626,8 @@ export default function Profile() {
                 </div>
 
                 {/* Statutory Numbers */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                       <IdCard size={18} />
                     </div>
@@ -634,9 +636,9 @@ export default function Profile() {
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         SSS Number
                       </label>
                       <input
@@ -645,11 +647,11 @@ export default function Profile() {
                         value={employee.sssNumber || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         PhilHealth Number
                       </label>
                       <input
@@ -658,11 +660,11 @@ export default function Profile() {
                         value={employee.philHealthNumber || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Pag-IBIG Number
                       </label>
                       <input
@@ -671,15 +673,15 @@ export default function Profile() {
                         value={employee.pagIbigNumber || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Emergency Contact */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
                       <ShieldAlert size={18} />
                     </div>
@@ -688,9 +690,9 @@ export default function Profile() {
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Contact Name
                       </label>
                       <input
@@ -699,12 +701,12 @@ export default function Profile() {
                         value={employee.emergencyContactName || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Contact Number
                       </label>
                       <input
@@ -713,12 +715,12 @@ export default function Profile() {
                         value={employee.emergencyContactNumber || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Relation
                       </label>
                       <input
@@ -727,12 +729,12 @@ export default function Profile() {
                         value={employee.relationToEmployee || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
 
                     <div className="sm:col-span-3">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                         Emergency Contact Address
                       </label>
                       <input
@@ -741,14 +743,14 @@ export default function Profile() {
                         value={employee.emergencyContactAddress || ""}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
+                        className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Bottom Action Footer */}
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-2 text-xs text-amber-800 font-semibold">
                     {hasChanges ? (
                       <>
@@ -771,7 +773,7 @@ export default function Profile() {
                         type="button"
                         onClick={handleDiscard}
                         disabled={isSubmitting}
-                        className="flex-1 sm:flex-none py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                        className="flex-1 sm:flex-none py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]"
                       >
                         <RotateCcw size={14} /> Discard
                       </button>
@@ -780,16 +782,16 @@ export default function Profile() {
                     <button
                       type="submit"
                       disabled={isSubmitting || !hasChanges}
-                      className="flex-1 sm:flex-none py-2.5 px-6 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="flex-1 sm:flex-none py-2 px-5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 size={15} className="animate-spin" />{" "}
+                          <Loader2 size={14} className="animate-spin" />{" "}
                           Saving...
                         </>
                       ) : (
                         <>
-                          <Save size={15} /> Save Changes
+                          <Save size={14} /> Save Changes
                         </>
                       )}
                     </button>
@@ -798,11 +800,8 @@ export default function Profile() {
               </form>
             ) : (
               /* Account Security Tab */
-              <form
-                onSubmit={handlePasswordSubmit}
-                className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5"
-              >
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-amber-50 text-amber-800">
                     <Lock size={18} />
                   </div>
@@ -810,116 +809,121 @@ export default function Profile() {
                     <h2 className="text-sm font-bold text-slate-900">
                       Change Account Password
                     </h2>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       Ensure your account uses a strong, unique password.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      Current Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showCurrentPassword ? "text" : "password"}
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        disabled={isSubmitting}
-                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowCurrentPassword(!showCurrentPassword)
-                        }
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                      >
-                        {showCurrentPassword ? (
-                          <EyeOff size={15} />
-                        ) : (
-                          <Eye size={15} />
-                        )}
-                      </button>
+                <form
+                  onSubmit={handlePasswordSubmit}
+                  className="p-5 sm:p-6 space-y-4"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        Current Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          disabled={isSubmitting}
+                          className="w-full border border-slate-300 bg-white p-2.5 pr-10 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowCurrentPassword(!showCurrentPassword)
+                          }
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showCurrentPassword ? (
+                            <EyeOff size={15} />
+                          ) : (
+                            <Eye size={15} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          disabled={isSubmitting}
+                          className="w-full border border-slate-300 bg-white p-2.5 pr-10 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showNewPassword ? (
+                            <EyeOff size={15} />
+                          ) : (
+                            <Eye size={15} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          disabled={isSubmitting}
+                          className="w-full border border-slate-300 bg-white p-2.5 pr-10 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff size={15} />
+                          ) : (
+                            <Eye size={15} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showNewPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        disabled={isSubmitting}
-                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                      >
-                        {showNewPassword ? (
-                          <EyeOff size={15} />
-                        ) : (
-                          <Eye size={15} />
-                        )}
-                      </button>
-                    </div>
+                  <div className="flex justify-end pt-4 border-t border-slate-100">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full sm:w-auto py-2 px-5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />{" "}
+                          Updating...
+                        </>
+                      ) : (
+                        "Update Password"
+                      )}
+                    </button>
                   </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        disabled={isSubmitting}
-                        className="w-full p-2.5 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary) disabled:bg-slate-50 disabled:text-slate-400"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff size={15} />
-                        ) : (
-                          <Eye size={15} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto py-2.5 px-6 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />{" "}
-                        Updating...
-                      </>
-                    ) : (
-                      "Update Password"
-                    )}
-                  </button>
-                </div>
-              </form>
+                </form>
+              </div>
             )}
           </div>
         )

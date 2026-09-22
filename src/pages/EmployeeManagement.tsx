@@ -61,7 +61,7 @@ interface Employee {
   employmentStatus: string;
 }
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 5;
 
 const initialFormState = {
   employeeIdNumber: "",
@@ -93,12 +93,12 @@ const initialFormState = {
   dailyAllowance: 100,
   bloodType: "O+",
   hasGovernmentDeductions: true,
-  sssNumber: "", // Added missing tracking key
-  philHealthNumber: "", // Added missing tracking key
-  pagIbigNumber: "", // Added missing tracking key
-  deductionType: "Per Pay Period", // Added missing tracking key
-  photo: "", // Added missing tracking key
-  employmentStatus: "Active", // Added missing tracking key
+  sssNumber: "",
+  philHealthNumber: "",
+  pagIbigNumber: "",
+  deductionType: "Per Pay Period",
+  photo: "",
+  employmentStatus: "Active",
 };
 
 export default function EmployeeManagement() {
@@ -107,9 +107,7 @@ export default function EmployeeManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | "admin" | "staff">(
-    "all",
-  );
+  const [activeTab, setActiveTab] = useState<"all" | "admin" | "staff">("all");
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -163,6 +161,34 @@ export default function EmployeeManagement() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const trimmedUsername = formData.username.trim().toLowerCase();
+    const trimmedEmpId = formData.employeeIdNumber.trim().toLowerCase();
+
+    const isUsernameDuplicate = employees.some(
+      (emp) => emp.username.trim().toLowerCase() === trimmedUsername,
+    );
+
+    if (isUsernameDuplicate) {
+      showToast(
+        `Username "@${formData.username}" is already taken. Please choose a different username.`,
+        "error",
+      );
+      return;
+    }
+
+    const isEmpIdDuplicate = employees.some(
+      (emp) => emp.employeeIdNumber.trim().toLowerCase() === trimmedEmpId,
+    );
+
+    if (isEmpIdDuplicate) {
+      showToast(
+        `Employee ID "${formData.employeeIdNumber}" is already registered. Please use a unique ID.`,
+        "error",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await api.post("/Employees", formData);
@@ -180,6 +206,38 @@ export default function EmployeeManagement() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editEmployeeData) return;
+
+    const trimmedUsername = editEmployeeData.username.trim().toLowerCase();
+    const trimmedEmpId = editEmployeeData.employeeIdNumber.trim().toLowerCase();
+
+    const isUsernameDuplicate = employees.some(
+      (emp) =>
+        emp.id !== editEmployeeData.id &&
+        emp.username.trim().toLowerCase() === trimmedUsername,
+    );
+
+    if (isUsernameDuplicate) {
+      showToast(
+        `Username "@${editEmployeeData.username}" is already taken by another employee.`,
+        "error",
+      );
+      return;
+    }
+
+    const isEmpIdDuplicate = employees.some(
+      (emp) =>
+        emp.id !== editEmployeeData.id &&
+        emp.employeeIdNumber.trim().toLowerCase() === trimmedEmpId,
+    );
+
+    if (isEmpIdDuplicate) {
+      showToast(
+        `Employee ID "${editEmployeeData.employeeIdNumber}" is already registered to another employee.`,
+        "error",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await api.put(`/Employees/${editEmployeeData.id}`, editEmployeeData);
@@ -218,11 +276,11 @@ export default function EmployeeManagement() {
         emp.employeeIdNumber.toLowerCase().includes(query) ||
         emp.jobTitle.toLowerCase().includes(query);
 
-      if (filterRole === "admin") return matchesSearch && emp.isAdmin;
-      if (filterRole === "staff") return matchesSearch && !emp.isAdmin;
+      if (activeTab === "admin") return matchesSearch && emp.isAdmin;
+      if (activeTab === "staff") return matchesSearch && !emp.isAdmin;
       return matchesSearch;
     });
-  }, [employees, searchQuery, filterRole]);
+  }, [employees, searchQuery, activeTab]);
 
   const totalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
   const paginatedEmployees = useMemo(() => {
@@ -231,206 +289,319 @@ export default function EmployeeManagement() {
   }, [filteredEmployees, currentPage]);
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-      {/* Header Panel */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-amber-50 text-amber-800">
-                <Users size={20} />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="space-y-5">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
+              <Users size={18} />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
                 Employee Directory
               </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage organization staff records, roles, and access
+                credentials.
+              </p>
             </div>
-            <p className="text-xs font-medium text-slate-500 mt-1">
-              Manage organization staff records, roles, and access credentials.
-            </p>
           </div>
+
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center active:scale-[0.98]"
+          >
+            <Plus size={16} /> Add Employee
+          </button>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center active:scale-[0.98]"
-        >
-          <Plus size={16} /> Add Employee
-        </button>
-      </div>
-
-      {/* Filter & Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
-          <input
-            type="text"
-            placeholder="Search staff, ID, or title..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-(--primary)"
-          />
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-          {(["all", "admin", "staff"] as const).map((role) => (
+        {/* Tabs for All / Admins / Staff */}
+        <div className="flex border-b border-slate-200 gap-8 px-2">
+          {(
+            [
+              { key: "all", label: "All Employees", count: employees.length },
+              {
+                key: "admin",
+                label: "Admins",
+                count: employees.filter((e) => e.isAdmin).length,
+              },
+              {
+                key: "staff",
+                label: "Staff",
+                count: employees.filter((e) => !e.isAdmin).length,
+              },
+            ] as const
+          ).map((tab) => (
             <button
-              key={role}
+              key={tab.key}
               onClick={() => {
-                setFilterRole(role);
+                setActiveTab(tab.key);
                 setCurrentPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer capitalize ${
-                filterRole === role
-                  ? "bg-(--primary) text-slate-950 shadow-xs font-bold"
-                  : "text-slate-500 hover:bg-slate-100"
+              className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === tab.key
+                  ? "border-(--primary) text-amber-900"
+                  : "border-transparent text-slate-400 hover:text-slate-700"
               }`}
             >
-              {role} (
-              {role === "all"
-                ? employees.length
-                : employees.filter((e) =>
-                    role === "admin" ? e.isAdmin : !e.isAdmin,
-                  ).length}
-              )
+              {tab.label}
+              <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                {tab.count}
+              </span>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Directory Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden md:block">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              <th className="py-3.5 px-5">Employee ID / User</th>
-              <th className="py-3.5 px-5">Full Name</th>
-              <th className="py-3.5 px-5">Job Title</th>
-              <th className="py-3.5 px-5">Employment</th>
-              <th className="py-3.5 px-5">Access Role</th>
-              <th className="py-3.5 px-5 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
+        {/* Main Workspace Card */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          {/* Search Bar Bar */}
+          <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50">
+            <div className="max-w-md relative">
+              <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2 flex items-center gap-1.5">
+                <Search size={13} className="text-slate-400" />
+                Search Directory
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search staff by name, ID, or title..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full h-11 pl-9 pr-4 border border-slate-300 bg-white rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+                />
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                  <th className="py-3.5 px-6">Employee ID / User</th>
+                  <th className="py-3.5 px-6">Full Name</th>
+                  <th className="py-3.5 px-6">Job Title</th>
+                  <th className="py-3.5 px-6">Employment</th>
+                  <th className="py-3.5 px-6">Access Role</th>
+                  <th className="py-3.5 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-12 text-center text-slate-400"
+                    >
+                      <Loader2
+                        size={22}
+                        className="animate-spin text-amber-600 mx-auto mb-2"
+                      />
+                      <p className="text-xs font-semibold text-slate-500">
+                        Loading employees...
+                      </p>
+                    </td>
+                  </tr>
+                ) : paginatedEmployees.length > 0 ? (
+                  paginatedEmployees.map((emp) => (
+                    <tr
+                      key={emp.id}
+                      className="hover:bg-slate-50/60 transition-colors cursor-pointer group"
+                      onClick={() => setViewEmployee(emp)}
+                    >
+                      <td className="py-4 px-6">
+                        <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                          {emp.employeeIdNumber}
+                        </span>
+                        <p className="text-[11px] font-semibold text-slate-500 mt-1">
+                          @{emp.username}
+                        </p>
+                      </td>
+                      <td className="py-4 px-6 font-bold text-slate-900 text-xs">
+                        {emp.lastName}, {emp.firstName}
+                      </td>
+                      <td className="py-4 px-6 text-slate-600 font-medium text-xs">
+                        {emp.jobTitle}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/60">
+                          {emp.employmentType}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        {emp.isAdmin ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/60">
+                            <ShieldCheck size={13} /> Admin
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/60">
+                            <User size={13} className="text-slate-400" />{" "}
+                            Employee
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className="py-4 px-6 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setViewEmployee(emp)}
+                            className="text-slate-400 hover:text-amber-700 p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer"
+                            title="View Profile"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => setEditEmployeeData(emp)}
+                            className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                            title="Edit Record"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteId(emp.id)}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Delete Record"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-12 text-center text-slate-400 text-xs"
+                    >
+                      No employees found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
             {loading ? (
-              <tr>
-                <td colSpan={6} className="py-12 text-center text-slate-400">
-                  <Loader2
-                    size={24}
-                    className="animate-spin text-amber-600 mx-auto"
-                  />
-                </td>
-              </tr>
+              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 space-y-2">
+                <Loader2
+                  size={22}
+                  className="animate-spin text-amber-600 mx-auto"
+                />
+                <p className="text-xs font-semibold text-slate-500">
+                  Loading employee cards...
+                </p>
+              </div>
             ) : paginatedEmployees.length > 0 ? (
               paginatedEmployees.map((emp) => (
-                <tr
+                <div
                   key={emp.id}
-                  className="hover:bg-slate-50/65 transition-colors group cursor-pointer"
                   onClick={() => setViewEmployee(emp)}
+                  className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3 cursor-pointer"
                 >
-                  <td className="py-4 px-5">
-                    <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                      {emp.employeeIdNumber}
-                    </span>
-                    <p className="text-[11px] font-semibold mt-1">
-                      @{emp.username}
-                    </p>
-                  </td>
-                  <td className="py-4 px-5 font-bold text-slate-900">
-                    {emp.lastName}, {emp.firstName}
-                  </td>
-                  <td className="py-4 px-5 text-slate-600 font-medium text-xs">
-                    {emp.jobTitle}
-                  </td>
-                  <td className="py-4 px-5">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/60">
-                      {emp.employmentType}
-                    </span>
-                  </td>
-                  <td className="py-4 px-5">
-                    {emp.isAdmin ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 border border-amber-200/60">
-                        <ShieldCheck size={13} /> Admin
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200/60">
-                        <User size={13} className="text-slate-400" /> Employee
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    className="py-4 px-5 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center justify-end gap-1">
+                  <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-xs">
+                        {emp.lastName}, {emp.firstName}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        @{emp.username} • ID: {emp.employeeIdNumber}
+                      </p>
+                    </div>
+                    <div
+                      className="flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => setViewEmployee(emp)}
-                        className="text-slate-400 p-1.5 rounded-lg hover:bg-amber-50"
+                        className="p-1.5 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg cursor-pointer"
                       >
                         <Eye size={16} />
                       </button>
                       <button
                         onClick={() => setEditEmployeeData(emp)}
-                        className="text-slate-400 p-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
                       >
                         <Edit3 size={16} />
                       </button>
                       <button
                         onClick={() => setDeleteId(emp.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-medium text-slate-600">
+                      {emp.jobTitle}
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
+                        emp.isAdmin
+                          ? "bg-amber-50 text-amber-800 border border-amber-200"
+                          : "bg-slate-100 text-slate-700 border border-slate-200"
+                      }`}
+                    >
+                      {emp.isAdmin ? "Admin" : "Employee"}
+                    </span>
+                  </div>
+                </div>
               ))
             ) : (
-              <tr>
-                <td colSpan={6} className="py-12 text-center text-slate-400">
-                  No employees found
-                </td>
-              </tr>
+              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
+                No employees found.
+              </div>
             )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination Controls */}
-      {!loading && totalPages > 1 && (
-        <div className="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-2 border rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 border rounded-xl hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-            >
-              <ChevronRight size={16} />
-            </button>
           </div>
+
+          {/* Pagination Controls Footer */}
+          {totalPages > 1 && (
+            <div className="p-4 bg-slate-50/60 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Modals */}
       <ViewEmployeeModal
@@ -444,8 +615,8 @@ export default function EmployeeManagement() {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 z-50">
-          <div className="bg-white rounded-none sm:rounded-3xl max-w-2xl w-full h-full sm:h-auto max-h-none sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-xl overflow-hidden border border-slate-200">
             {/* Modal Header */}
             <div className="p-5 sm:p-6 flex justify-between items-center border-b border-slate-100 bg-white shrink-0">
               <div className="flex items-center gap-2.5">
@@ -481,7 +652,7 @@ export default function EmployeeManagement() {
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="px-5 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold hover:bg-white transition-colors cursor-pointer text-slate-700"
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold hover:bg-white transition-colors cursor-pointer text-slate-700"
               >
                 Cancel
               </button>
@@ -489,11 +660,11 @@ export default function EmployeeManagement() {
                 type="submit"
                 onClick={handleCreate}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
+                className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 size={15} className="animate-spin" /> Saving...
+                    <Loader2 size={14} className="animate-spin" /> Saving...
                   </>
                 ) : (
                   "Save Employee Record"
@@ -507,19 +678,22 @@ export default function EmployeeManagement() {
       {/* Edit Modal */}
       {editEmployeeData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-2xl w-full space-y-5 border shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b pb-3">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-xl overflow-hidden border border-slate-200">
+            <div className="p-5 sm:p-6 flex justify-between items-center border-b border-slate-100 bg-white shrink-0">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Edit3 size={18} /> Edit Employee Record
               </h2>
               <button
                 onClick={() => setEditEmployeeData(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleUpdate} className="space-y-4">
+            <form
+              onSubmit={handleUpdate}
+              className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4"
+            >
               <EmployeeFormFields
                 formData={editEmployeeData}
                 setFormData={
@@ -529,27 +703,30 @@ export default function EmployeeManagement() {
                 }
                 isSubmitting={isSubmitting}
               />
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setEditEmployeeData(null)}
-                  className="px-4 py-2 border rounded-xl font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-(--primary) text-slate-950 rounded-xl font-semibold"
-                >
-                  {isSubmitting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    "Save Changes"
-                  )}
-                </button>
-              </div>
             </form>
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditEmployeeData(null)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold hover:bg-white transition-colors cursor-pointer text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                onClick={handleUpdate}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
