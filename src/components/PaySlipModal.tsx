@@ -122,14 +122,24 @@ export default function PaySlipModal({
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
 
+      // Format employee name (e.g., ASD_dsa)
       const rawName = paySlip.employeeName || "Employee";
       const sanitizedName = rawName
         .replace(/,/g, "")
         .trim()
         .replace(/\s+/g, "_");
 
+      // Format payslip type code ("15th" or "14-28")
+      const payslipType = paySlip.payPeriod?.includes("15th")
+        ? "15th"
+        : "14-28";
+
+      // Current creation date formatted as YYYY-MM-DD
+      const currentDate = new Date().toISOString().split("T")[0];
+
+      // Pattern: employeeName_payslipType_Date
       link.href = url;
-      link.download = `Payslip_${sanitizedName}.pdf`;
+      link.download = `${sanitizedName}_${payslipType}_${currentDate}.pdf`;
       link.click();
 
       window.URL.revokeObjectURL(url);
