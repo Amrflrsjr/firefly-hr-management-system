@@ -57,8 +57,28 @@ export default function Overtime() {
   const [formData, setFormData] = useState({
     employeeId: "",
     overtimeDate: "",
-    overtimeHours: 2,
+    timeIn: "17:00",
+    timeOut: "19:00",
   });
+
+  // Automatically calculate hours between timeIn and timeOut
+  const calculatedHours = useMemo(() => {
+    if (!formData.timeIn || !formData.timeOut) return 0;
+    const [inHours, inMinutes] = formData.timeIn.split(":").map(Number);
+    const [outHours, outMinutes] = formData.timeOut.split(":").map(Number);
+
+    const totalInMinutes = inHours * 60 + inMinutes;
+    const totalOutMinutes = outHours * 60 + outMinutes;
+
+    let diffMinutes = totalOutMinutes - totalInMinutes;
+    if (diffMinutes < 0) {
+      // Handles overnight shifts if needed
+      diffMinutes += 24 * 60;
+    }
+
+    const hours = diffMinutes / 60;
+    return Number(hours.toFixed(2));
+  }, [formData.timeIn, formData.timeOut]);
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
@@ -121,9 +141,11 @@ export default function Overtime() {
           if (!isMounted) return;
 
           // Filter out admin employees
-          const nonAdminEmployees = res.data.filter(
-            (emp: Employee) => !emp.isAdmin,
-          );
+          const nonAdminEmployees = res.data
+            .filter((emp: Employee) => !emp.isAdmin)
+            .sort((a: Employee, b: Employee) =>
+              a.lastName.localeCompare(b.lastName),
+            );
 
           setEmployees(nonAdminEmployees);
           if (nonAdminEmployees.length > 0) {
@@ -162,11 +184,17 @@ export default function Overtime() {
       return;
     }
 
+    if (calculatedHours <= 0) {
+      showToast("Time Out must be later than Time In.", "error");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await api.post("/Overtimes", {
         employeeId: Number(targetId),
         overtimeDate: new Date(formData.overtimeDate).toISOString(),
-        overtimeHours: Number(formData.overtimeHours),
+        overtimeHours: calculatedHours,
         status: role === "Admin" ? "Approved" : "In Review",
       });
       setShowModal(false);
@@ -176,7 +204,8 @@ export default function Overtime() {
             ? employees[0].id.toString()
             : loggedInEmployeeId,
         overtimeDate: "",
-        overtimeHours: 2,
+        timeIn: "17:00",
+        timeOut: "19:00",
       });
       showToast("Overtime record submitted successfully!");
       loadOvertimes(selectedEmployee);
@@ -743,25 +772,48 @@ export default function Overtime() {
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Overtime Hours
-                </label>
-                <input
-                  type="number"
-                  value={formData.overtimeHours}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      overtimeHours: Number(e.target.value),
-                    })
-                  }
-                  disabled={isSubmitting}
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-mono font-bold"
-                  min={1}
-                  max={12}
-                  required
-                />
+              {/* Time In and Time Out Inputs */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Time In
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.timeIn}
+                    onChange={(e) =>
+                      setFormData({ ...formData, timeIn: e.target.value })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Time Out
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.timeOut}
+                    onChange={(e) =>
+                      setFormData({ ...formData, timeOut: e.target.value })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Live Calculated Hours Summary */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between">
+                <span className="font-bold text-slate-600 uppercase text-[10px] tracking-wider">
+                  Computed Overtime Duration:
+                </span>
+                <span className="font-mono font-bold text-amber-900 text-sm">
+                  {calculatedHours} {calculatedHours === 1 ? "hour" : "hours"}
+                </span>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -775,8 +827,8 @@ export default function Overtime() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold flex items-center gap-2 cursor-pointer"
+                  disabled={isSubmitting || calculatedHours <= 0}
+                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <Loader2 size={14} className="animate-spin" />

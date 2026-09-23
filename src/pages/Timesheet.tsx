@@ -52,7 +52,7 @@ interface Employee {
   isAdmin?: boolean;
 }
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 15;
 
 // Haversine formula to calculate distance in meters from Firefly Crafts PH shop pin
 function calculateShopDistance(lat: number, lon: number): number {
@@ -267,10 +267,12 @@ export default function Timesheet() {
           const res = await api.get("/Employees");
           if (!isMounted) return;
 
-          // Filter out admin employees
-          const nonAdminEmployees = res.data.filter(
-            (emp: Employee) => !emp.isAdmin,
-          );
+          // Filter out admin employees and sort alphabetically by last name[cite: 13]
+          const nonAdminEmployees = res.data
+            .filter((emp: Employee) => !emp.isAdmin)
+            .sort((a: Employee, b: Employee) =>
+              a.lastName.localeCompare(b.lastName),
+            );
 
           setEmployees(nonAdminEmployees);
           const currentSelected = selectedEmployee || "all";

@@ -35,4 +35,7 @@ export interface Employee {
   deductionType: string;
   photo?: string;
   employmentStatus: string;
+  maxLeaveHours: number;
+  usedLeaveHours: number;
+  remainingLeaveHours: number;
 }

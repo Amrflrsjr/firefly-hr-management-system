@@ -70,7 +70,6 @@ export default function History() {
   );
 
   // 1. Fetch Employee List for Admins on Mount
-  // 1. Fetch Employee List for Admins on Mount
   useEffect(() => {
     let isMounted = true;
     if (role === "Admin") {
@@ -78,10 +77,12 @@ export default function History() {
         .get("/Employees")
         .then((res) => {
           if (isMounted && res.data.length > 0) {
-            // Filter out admin employees
-            const nonAdminEmployees = res.data.filter(
-              (emp: Employee) => !emp.isAdmin,
-            );
+            // Filter out admin employees and sort alphabetically by last name
+            const nonAdminEmployees = res.data
+              .filter((emp: Employee) => !emp.isAdmin)
+              .sort((a: Employee, b: Employee) =>
+                a.lastName.localeCompare(b.lastName),
+              );
             setEmployees(nonAdminEmployees);
           }
         })

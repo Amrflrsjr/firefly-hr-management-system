@@ -23,6 +23,7 @@ interface Employee {
   id: number;
   firstName: string;
   lastName: string;
+  isAdmin?: boolean;
 }
 
 interface CashAdvance {
@@ -130,11 +131,20 @@ export default function CashAdvances() {
         try {
           const empRes = await api.get("/Employees");
           if (isMounted && empRes.data.length > 0) {
-            setEmployees(empRes.data);
-            setFormData((prev) => ({
-              ...prev,
-              employeeId: String(empRes.data[0].id),
-            }));
+            // Filter out admin employees and sort alphabetically by last name[cite: 12]
+            const nonAdminEmployees = empRes.data
+              .filter((emp: Employee) => !emp.isAdmin)
+              .sort((a: Employee, b: Employee) =>
+                a.lastName.localeCompare(b.lastName),
+              );
+
+            setEmployees(nonAdminEmployees);
+            if (nonAdminEmployees.length > 0) {
+              setFormData((prev) => ({
+                ...prev,
+                employeeId: String(nonAdminEmployees[0].id),
+              }));
+            }
           }
         } catch {
           // Ignore employee fetch errors

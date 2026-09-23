@@ -21,6 +21,8 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
     setFormData((prev) => ({ ...prev, [name]: val }));
   };
 
+  const employeeData = formData as unknown as Partial<Employee>;
+
   return (
     <div className="space-y-5 text-xs">
       {/* SECTION 1: Account Credentials & Security */}
@@ -31,12 +33,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Employee ID Number *
+              Employee ID Number <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               name="employeeIdNumber"
-              value={formData.employeeIdNumber || ""}
+              value={employeeData.employeeIdNumber || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="e.g. EMP-2026-001"
@@ -46,12 +48,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           </div>
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Login Username *
+              Login Username <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               name="username"
-              value={formData.username || ""}
+              value={employeeData.username || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="e.g. jdoe"
@@ -77,7 +79,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               type="checkbox"
               name="isAdmin"
               id="isAdmin"
-              checked={Boolean(formData.isAdmin)}
+              checked={Boolean(employeeData.isAdmin)}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-4 h-4 text-amber-600 rounded cursor-pointer accent-amber-600"
@@ -100,12 +102,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              First Name *
+              First Name <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               name="firstName"
-              value={formData.firstName || ""}
+              value={employeeData.firstName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -119,7 +121,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="middleName"
-              value={formData.middleName || ""}
+              value={employeeData.middleName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -127,12 +129,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           </div>
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Last Name *
+              Last Name <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               name="lastName"
-              value={formData.lastName || ""}
+              value={employeeData.lastName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -149,7 +151,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="date"
               name="dateOfBirth"
-              value={formData.dateOfBirth?.split("T")[0] || ""}
+              value={employeeData.dateOfBirth?.split("T")[0] || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -162,7 +164,9 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="number"
               name="age"
-              value={formData.age || 0}
+              min={18}
+              max={100}
+              value={employeeData.age || 0}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
@@ -179,7 +183,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </label>
             <select
               name="gender"
-              value={formData.gender || "Male"}
+              value={employeeData.gender || "Male"}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -194,7 +198,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </label>
             <select
               name="civilStatus"
-              value={formData.civilStatus || "Single"}
+              value={employeeData.civilStatus || "Single"}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -213,7 +217,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </label>
             <select
               name="bloodType"
-              value={formData.bloodType || "O+"}
+              value={employeeData.bloodType || "O+"}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -235,7 +239,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="photo"
-              value={formData.photo || ""}
+              value={employeeData.photo || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="e.g. profile.jpg"
@@ -258,7 +262,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="contactNumber"
-              value={formData.contactNumber || ""}
+              value={employeeData.contactNumber || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="09XXXXXXXXX"
@@ -272,7 +276,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="email"
               name="personalEmailAddress"
-              value={formData.personalEmailAddress || ""}
+              value={employeeData.personalEmailAddress || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               placeholder="email@example.com"
@@ -287,7 +291,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           <input
             type="text"
             name="currentAddress"
-            value={formData.currentAddress || ""}
+            value={employeeData.currentAddress || ""}
             onChange={handleChange}
             disabled={isSubmitting}
             className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -300,7 +304,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           <input
             type="text"
             name="permanentAddress"
-            value={formData.permanentAddress || ""}
+            value={employeeData.permanentAddress || ""}
             onChange={handleChange}
             disabled={isSubmitting}
             className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -316,12 +320,12 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Job Title *
+              Job Title <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               name="jobTitle"
-              value={formData.jobTitle || ""}
+              value={employeeData.jobTitle || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -335,7 +339,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="employmentType"
-              value={formData.employmentType || "Regular"}
+              value={employeeData.employmentType || "Regular"}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -347,7 +351,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </label>
             <select
               name="employmentStatus"
-              value={formData.employmentStatus || "Active"}
+              value={employeeData.employmentStatus || "Active"}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -367,7 +371,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             </label>
             <select
               name="officeType"
-              value={formData.officeType || "Admin"}
+              value={employeeData.officeType || "Admin"}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -383,7 +387,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="date"
               name="dateHired"
-              value={formData.dateHired?.split("T")[0] || ""}
+              value={employeeData.dateHired?.split("T")[0] || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -396,7 +400,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="date"
               name="declaredDateHired"
-              value={formData.declaredDateHired?.split("T")[0] || ""}
+              value={employeeData.declaredDateHired?.split("T")[0] || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -405,21 +409,73 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
         </div>
       </div>
 
-      {/* SECTION 5: Compensation & Statutory */}
+      {/* SECTION 5: Leave Allocation & Balances */}
       <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
-        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
-          5. Compensation & Statutory Contributions
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2 flex items-center gap-1.5">
+          5. Leave Allocation & Balances
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Daily Salary (PHP) *
+              Max Leave Hours <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="maxLeaveHours"
+              min={0}
+              step={1}
+              value={employeeData.maxLeaveHours ?? 40}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  maxLeaveHours: parseFloat(e.target.value) || 0,
+                }))
+              }
+              disabled={isSubmitting}
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-bold text-slate-800 focus:outline-none focus:border-(--primary)"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Remaining Leave Hours <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="remainingLeaveHours"
+              min={0}
+              step={1}
+              value={employeeData.remainingLeaveHours ?? 40}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  remainingLeaveHours: parseFloat(e.target.value) || 0,
+                }))
+              }
+              disabled={isSubmitting}
+              className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-bold text-slate-800 focus:outline-none focus:border-(--primary)"
+              required
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION 6: Compensation & Statutory */}
+      <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+        <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
+          6. Compensation & Statutory Contributions
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Daily Salary (PHP) <span className="text-rose-500">*</span>
             </label>
             <input
               type="number"
               step="50"
+              min={0}
               name="dailySalary"
-              value={formData.dailySalary || 0}
+              value={employeeData.dailySalary || 0}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
@@ -433,13 +489,14 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           </div>
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Daily Allowance (PHP) *
+              Daily Allowance (PHP) <span className="text-rose-500">*</span>
             </label>
             <input
               type="number"
               step="10"
+              min={0}
               name="dailyAllowance"
-              value={formData.dailyAllowance || 0}
+              value={employeeData.dailyAllowance || 0}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
@@ -458,7 +515,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             type="checkbox"
             name="hasGovernmentDeductions"
             id="hasGov"
-            checked={Boolean(formData.hasGovernmentDeductions)}
+            checked={Boolean(employeeData.hasGovernmentDeductions)}
             onChange={handleChange}
             disabled={isSubmitting}
             className="w-4 h-4 mt-0.5 text-amber-600 rounded cursor-pointer accent-amber-600"
@@ -476,7 +533,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           </div>
         </div>
 
-        {formData.hasGovernmentDeductions && (
+        {employeeData.hasGovernmentDeductions && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
@@ -485,7 +542,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               <input
                 type="text"
                 name="sssNumber"
-                value={formData.sssNumber || ""}
+                value={employeeData.sssNumber || ""}
                 onChange={handleChange}
                 disabled={isSubmitting}
                 className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -498,7 +555,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               <input
                 type="text"
                 name="philHealthNumber"
-                value={formData.philHealthNumber || ""}
+                value={employeeData.philHealthNumber || ""}
                 onChange={handleChange}
                 disabled={isSubmitting}
                 className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -511,7 +568,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
               <input
                 type="text"
                 name="pagIbigNumber"
-                value={formData.pagIbigNumber || ""}
+                value={employeeData.pagIbigNumber || ""}
                 onChange={handleChange}
                 disabled={isSubmitting}
                 className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -526,7 +583,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           </label>
           <select
             name="deductionType"
-            value={formData.deductionType || "Per Pay Period"}
+            value={employeeData.deductionType || "Per Pay Period"}
             onChange={handleChange}
             disabled={isSubmitting}
             className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
@@ -539,10 +596,10 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
         </div>
       </div>
 
-      {/* SECTION 6: Emergency Contact */}
+      {/* SECTION 7: Emergency Contact */}
       <div className="bg-slate-50/50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
         <h3 className="font-bold uppercase tracking-wider text-[10px] text-slate-500 border-b border-slate-200 pb-2">
-          6. Emergency Contact Details
+          7. Emergency Contact Details
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
@@ -552,7 +609,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="emergencyContactName"
-              value={formData.emergencyContactName || ""}
+              value={employeeData.emergencyContactName || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -565,7 +622,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="emergencyContactNumber"
-              value={formData.emergencyContactNumber || ""}
+              value={employeeData.emergencyContactNumber || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -578,7 +635,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <input
               type="text"
               name="relationToEmployee"
-              value={formData.relationToEmployee || ""}
+              value={employeeData.relationToEmployee || ""}
               onChange={handleChange}
               disabled={isSubmitting}
               className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
@@ -592,7 +649,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
           <input
             type="text"
             name="emergencyContactAddress"
-            value={formData.emergencyContactAddress || ""}
+            value={employeeData.emergencyContactAddress || ""}
             onChange={handleChange}
             disabled={isSubmitting}
             className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"

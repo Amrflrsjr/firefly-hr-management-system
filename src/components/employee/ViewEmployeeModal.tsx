@@ -1,4 +1,4 @@
-import { X, Edit3 } from "lucide-react";
+import { X, Edit3, Clock } from "lucide-react";
 import type { Employee } from "../../types/employee";
 
 interface ViewEmployeeModalProps {
@@ -42,6 +42,39 @@ export default function ViewEmployeeModal({
         </div>
 
         <div className="space-y-4 text-xs">
+          {/* Leave Balance Overview */}
+          <div>
+            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800 flex items-center gap-1.5">
+              <Clock size={13} /> Leave Balance Summary
+            </h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/60">
+                <span className="text-[10px] text-amber-800 block font-bold">
+                  Max Limit
+                </span>
+                <span className="font-mono font-bold text-slate-900 text-sm">
+                  {employee.maxLeaveHours ?? 40} hrs
+                </span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                <span className="text-[10px] text-slate-400 block font-bold">
+                  Used Hours
+                </span>
+                <span className="font-mono font-bold text-slate-700 text-sm">
+                  {employee.usedLeaveHours ?? 0} hrs
+                </span>
+              </div>
+              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-200/60">
+                <span className="text-[10px] text-emerald-800 block font-bold">
+                  Remaining
+                </span>
+                <span className="font-mono font-bold text-emerald-700 text-sm">
+                  {employee.remainingLeaveHours ?? 40} hrs
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div>
             <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800">
               Account & Identity
