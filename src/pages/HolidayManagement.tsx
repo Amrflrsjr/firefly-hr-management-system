@@ -24,7 +24,7 @@ interface Holiday {
   holidayType: string;
 }
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
 
 export default function HolidayManagement() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
