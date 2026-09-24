@@ -4,11 +4,9 @@ import {
   Plus,
   Trash2,
   DollarSign,
-  X,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   Check,
+  X,
   Ban,
   UserCheck,
   ChevronDown,
@@ -18,6 +16,8 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
+import PaginationBar from "../components/timesheet/PaginationBar";
+import CashAdvanceModal from "../components/cashAdvances/CashAdvanceModal";
 
 interface Employee {
   id: number;
@@ -59,7 +59,6 @@ export default function CashAdvances() {
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = Number(localStorage.getItem("employeeId")) || 1;
 
-  // Admins default to "all" employees, non-admin defaults to their own ID
   const [selectedEmployee, setSelectedEmployee] = useState<string>(
     role === "Admin" ? "all" : String(loggedInEmployeeId),
   );
@@ -131,7 +130,6 @@ export default function CashAdvances() {
         try {
           const empRes = await api.get("/Employees");
           if (isMounted && empRes.data.length > 0) {
-            // Filter out admin employees and sort alphabetically by last name[cite: 12]
             const nonAdminEmployees = empRes.data
               .filter((emp: Employee) => !emp.isAdmin)
               .sort((a: Employee, b: Employee) =>
@@ -256,18 +254,15 @@ export default function CashAdvances() {
     return `Employee ID: ${adv.employeeId}`;
   };
 
-  // Filter advances based on active tab and admin's selected employee dropdown filter
   const filteredAdvances = useMemo(() => {
     let result = advances;
 
-    // Filter by employee selection if admin chose a specific employee
     if (role === "Admin" && selectedEmployee !== "all") {
       result = result.filter(
         (a) => a.employeeId.toString() === selectedEmployee,
       );
     }
 
-    // Filter by tab
     if (activeTab === "pending") {
       return result.filter((a) => a.status === "Pending");
     }
@@ -341,7 +336,7 @@ export default function CashAdvances() {
           </button>
         </div>
 
-        {/* Tabs for All Advances vs Pending Requests */}
+        {/* Tabs */}
         <div className="flex border-b border-slate-200 gap-8 px-2">
           <button
             onClick={() => {
@@ -378,7 +373,6 @@ export default function CashAdvances() {
 
         {/* Main Workspace Card */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          {/* Employee Selection Bar (For Admins) */}
           {role === "Admin" && employees.length > 0 && (
             <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50">
               <div className="max-w-md">
@@ -499,14 +493,12 @@ export default function CashAdvances() {
                                 <button
                                   onClick={() => handleApprove(adv.id)}
                                   className="text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-emerald-200/60"
-                                  title="Approve Request"
                                 >
                                   <Check size={14} /> Approve
                                 </button>
                                 <button
                                   onClick={() => handleDecline(adv.id)}
                                   className="text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-rose-200/60"
-                                  title="Decline Request"
                                 >
                                   <X size={14} /> Decline
                                 </button>
@@ -517,7 +509,6 @@ export default function CashAdvances() {
                               <button
                                 onClick={() => setCancelId(adv.id)}
                                 className="text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-slate-200"
-                                title="Cancel Request"
                               >
                                 <Ban size={14} /> Cancel
                               </button>
@@ -527,7 +518,6 @@ export default function CashAdvances() {
                               <button
                                 onClick={() => setDeleteId(adv.id)}
                                 className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                                title="Delete Record"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -583,13 +573,13 @@ export default function CashAdvances() {
                         <>
                           <button
                             onClick={() => handleApprove(adv.id)}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer"
+                            className="p-1.5 text-emerald-600 rounded-lg cursor-pointer"
                           >
                             <Check size={16} />
                           </button>
                           <button
                             onClick={() => handleDecline(adv.id)}
-                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                            className="p-1.5 text-rose-600 rounded-lg cursor-pointer"
                           >
                             <X size={16} />
                           </button>
@@ -598,8 +588,7 @@ export default function CashAdvances() {
                       {adv.status === "Pending" && role !== "Admin" && (
                         <button
                           onClick={() => setCancelId(adv.id)}
-                          className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer"
-                          title="Cancel Request"
+                          className="p-1.5 text-slate-500 rounded-lg cursor-pointer"
                         >
                           <Ban size={16} />
                         </button>
@@ -607,7 +596,7 @@ export default function CashAdvances() {
                       {role === "Admin" && (
                         <button
                           onClick={() => setDeleteId(adv.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -640,13 +629,13 @@ export default function CashAdvances() {
                     <span
                       className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
                         adv.status === "Active"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          ? "bg-emerald-50 text-emerald-700"
                           : adv.status === "Declined" ||
                               adv.status === "Canceled"
-                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            ? "bg-rose-50 text-rose-700"
                             : adv.status === "Paid"
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : "bg-amber-50 text-amber-800 border border-amber-200"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-amber-50 text-amber-800"
                       }`}
                     >
                       {adv.status}
@@ -655,153 +644,33 @@ export default function CashAdvances() {
                 </div>
               ))
             ) : (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
+              <div className="bg-slate-50 p-8 rounded-lg text-center text-slate-400 text-xs">
                 No cash advance records found.
               </div>
             )}
           </div>
 
-          {/* Pagination Controls Footer */}
-          {totalPages > 1 && (
-            <div className="p-4 bg-slate-50/60 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            </div>
-          )}
+          <PaginationBar
+            page={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 
-      {/* Add / Request Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-md w-full space-y-5 border border-slate-200 shadow-xl">
-            <div className="flex justify-between items-center">
-              <h2 className="text-base font-bold text-slate-900">
-                {role === "Admin"
-                  ? "Add Cash Advance Record"
-                  : "Request Cash Advance"}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      <CashAdvanceModal
+        isOpen={showModal}
+        role={role}
+        employees={employees}
+        formData={formData}
+        isSubmitting={isSubmitting}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleCreate}
+        onChange={(field, val) =>
+          setFormData((prev) => ({ ...prev, [field]: val }))
+        }
+      />
 
-            <form onSubmit={handleCreate} className="space-y-4 text-xs">
-              {role === "Admin" && employees.length > 0 && (
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Select Employee
-                  </label>
-                  <select
-                    value={formData.employeeId}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        employeeId: e.target.value,
-                      })
-                    }
-                    disabled={isSubmitting}
-                    className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold cursor-pointer"
-                    required
-                  >
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.lastName}, {emp.firstName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Advance Amount (PHP)
-                </label>
-                <input
-                  type="number"
-                  value={formData.cashAdvanceAmount}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      cashAdvanceAmount: Number(e.target.value),
-                    })
-                  }
-                  disabled={isSubmitting}
-                  className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-mono font-bold"
-                  min={100}
-                  step={50}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Deduction Plan
-                </label>
-                <select
-                  value={formData.deductionType}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      deductionType: e.target.value,
-                    })
-                  }
-                  disabled={isSubmitting}
-                  className="w-full border border-slate-300 bg-white p-2.5 rounded-xl font-semibold cursor-pointer"
-                >
-                  <option value="Monthly">Monthly</option>
-                  <option value="Per Pay Period">Per Pay Period</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 rounded-xl font-semibold flex items-center gap-2 cursor-pointer shadow-sm active:scale-[0.98]"
-                >
-                  {isSubmitting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : null}
-                  {role === "Admin" ? "Add Record" : "Submit Request"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modals */}
       <ConfirmModal
         isOpen={cancelId !== null}
         title="Cancel Cash Advance Request"
@@ -822,7 +691,6 @@ export default function CashAdvances() {
         onClose={() => setDeleteId(null)}
       />
 
-      {/* Toast Notification */}
       <Toast
         message={toast?.text || null}
         type={toast?.type}

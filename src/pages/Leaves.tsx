@@ -7,8 +7,6 @@ import {
   X,
   Calendar as CalendarIcon,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   UserCheck,
   CheckCircle2,
   AlertCircle,
@@ -20,6 +18,8 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
+import PaginationBar from "../components/timesheet/PaginationBar";
+import LeaveModal from "../components/leaves/LeaveModal";
 
 interface Leave {
   id: number;
@@ -156,7 +156,6 @@ export default function Leaves() {
     };
 
     initLoad();
-
     return () => {
       isMounted = false;
     };
@@ -244,22 +243,20 @@ export default function Leaves() {
       message: "Are you sure you want to approve this leave request?",
       confirmText: "Approve",
       type: "primary",
-      onConfirm: () => executeApprove(id),
+      onConfirm: async () => {
+        try {
+          await api.put(`/Leaves/${id}/status`, JSON.stringify("Approved"), {
+            headers: { "Content-Type": "application/json" },
+          });
+          showToast("Leave request approved!");
+          loadData(selectedEmployee);
+        } catch {
+          showToast("Failed to approve leave.", "error");
+        } finally {
+          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
     });
-  };
-
-  const executeApprove = async (id: number) => {
-    try {
-      await api.put(`/Leaves/${id}/status`, JSON.stringify("Approved"), {
-        headers: { "Content-Type": "application/json" },
-      });
-      showToast("Leave request approved!");
-      loadData(selectedEmployee);
-    } catch {
-      showToast("Failed to approve leave.", "error");
-    } finally {
-      setModalConfig((prev) => ({ ...prev, isOpen: false }));
-    }
   };
 
   const triggerDeclineModal = (id: number) => {
@@ -269,20 +266,18 @@ export default function Leaves() {
       message: "Are you sure you want to decline this leave request?",
       confirmText: "Decline",
       type: "danger",
-      onConfirm: () => executeDecline(id),
+      onConfirm: async () => {
+        try {
+          await api.put(`/Leaves/${id}/reject`);
+          showToast("Leave request declined successfully.");
+          loadData(selectedEmployee);
+        } catch {
+          showToast("Failed to decline leave request.", "error");
+        } finally {
+          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
     });
-  };
-
-  const executeDecline = async (id: number) => {
-    try {
-      await api.put(`/Leaves/${id}/reject`);
-      showToast("Leave request declined successfully.");
-      loadData(selectedEmployee);
-    } catch {
-      showToast("Failed to decline leave request.", "error");
-    } finally {
-      setModalConfig((prev) => ({ ...prev, isOpen: false }));
-    }
   };
 
   const triggerCancelModal = (id: number) => {
@@ -292,20 +287,18 @@ export default function Leaves() {
       message: "Are you sure you want to cancel this pending leave request?",
       confirmText: "Cancel Request",
       type: "danger",
-      onConfirm: () => executeCancel(id),
+      onConfirm: async () => {
+        try {
+          await api.put(`/Leaves/${id}/cancel`);
+          showToast("Leave request cancelled successfully.");
+          loadData(selectedEmployee);
+        } catch {
+          showToast("Failed to cancel leave request.", "error");
+        } finally {
+          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
     });
-  };
-
-  const executeCancel = async (id: number) => {
-    try {
-      await api.put(`/Leaves/${id}/cancel`);
-      showToast("Leave request cancelled successfully.");
-      loadData(selectedEmployee);
-    } catch {
-      showToast("Failed to cancel leave request.", "error");
-    } finally {
-      setModalConfig((prev) => ({ ...prev, isOpen: false }));
-    }
   };
 
   const triggerDeleteModal = (id: number) => {
@@ -315,20 +308,18 @@ export default function Leaves() {
       message: "Are you sure you want to delete this leave record permanently?",
       confirmText: "Delete",
       type: "danger",
-      onConfirm: () => executeDelete(id),
+      onConfirm: async () => {
+        try {
+          await api.delete(`/Leaves/${id}`);
+          showToast("Leave record deleted successfully.");
+          loadData(selectedEmployee);
+        } catch {
+          showToast("Failed to delete leave record.", "error");
+        } finally {
+          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
     });
-  };
-
-  const executeDelete = async (id: number) => {
-    try {
-      await api.delete(`/Leaves/${id}`);
-      showToast("Leave record deleted successfully.");
-      loadData(selectedEmployee);
-    } catch {
-      showToast("Failed to delete leave record.", "error");
-    } finally {
-      setModalConfig((prev) => ({ ...prev, isOpen: false }));
-    }
   };
 
   const filteredLeaves = useMemo(() => {
@@ -603,7 +594,6 @@ export default function Leaves() {
                               <button
                                 onClick={() => triggerDeleteModal(leave.id)}
                                 className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
-                                title="Delete Record"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -732,151 +722,26 @@ export default function Leaves() {
             )}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 border bg-white rounded-lg disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="p-2 border bg-white rounded-lg disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            </div>
-          )}
+          <PaginationBar
+            page={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-md w-full space-y-5 border border-slate-200 shadow-xl">
-            <div className="flex justify-between items-center">
-              <h2 className="text-base font-bold text-slate-900">
-                {role === "Admin" ? "Add Leave Record" : "File Leave Request"}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreate} className="space-y-4 text-xs">
-              {role === "Admin" && employees.length > 0 && (
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Select Employee <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={formData.employeeId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, employeeId: e.target.value })
-                    }
-                    className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer bg-white"
-                    required
-                  >
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.lastName}, {emp.firstName} (
-                        {emp.remainingLeaveHours} hrs remaining)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Leave Type <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={formData.leaveType}
-                  onChange={(e) =>
-                    setFormData({ ...formData, leaveType: e.target.value })
-                  }
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer bg-white"
-                  required
-                >
-                  <option value="Vacation">Vacation Leave</option>
-                  <option value="Sick Leave">Sick Leave</option>
-                  <option value="Emergency">Emergency Leave</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Leave Date <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.leaveDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, leaveDate: e.target.value })
-                  }
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-semibold cursor-pointer bg-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Leave Hours <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.leaveHours}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      leaveHours: Number(e.target.value),
-                    })
-                  }
-                  className="w-full border border-slate-300 p-2.5 rounded-xl font-mono font-bold bg-white"
-                  min={1}
-                  max={40}
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border rounded-xl font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-(--primary) text-slate-950 rounded-xl font-semibold flex items-center gap-2 cursor-pointer"
-                >
-                  {isSubmitting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : null}
-                  Submit
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <LeaveModal
+        isOpen={showModal}
+        role={role}
+        employees={employees}
+        formData={formData}
+        isSubmitting={isSubmitting}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleCreate}
+        onChange={(field, val) =>
+          setFormData((prev) => ({ ...prev, [field]: val }))
+        }
+      />
 
       <ConfirmModal
         isOpen={modalConfig.isOpen}

@@ -38,6 +38,12 @@ interface LeaveBreakdownItem {
   color: string;
 }
 
+interface LeaveItem {
+  id: number;
+  leaveType: string;
+  status: string;
+}
+
 interface AdminDashboardProps {
   stats: AdminDashboardStats;
   trends: PayrollTrendItem[];
@@ -82,23 +88,48 @@ export default function AdminDashboard({
         const [payrollRes, attendanceRes, leaveRes] = await Promise.all([
           api.get("/Dashboard/payroll-trends").catch(() => ({ data: [] })),
           api.get("/Dashboard/attendance-trends").catch(() => ({ data: [] })),
-          api.get("/Dashboard/leave-distribution").catch(() => ({ data: [] })),
+          api.get("/Leaves").catch(() => ({ data: [] })), // Updated to use /Leaves endpoint
         ]);
 
         if (isMounted) {
           setPayrollTrends(payrollRes.data);
           setAttendanceTrends(attendanceRes.data);
 
-          const rawLeaves = leaveRes.data;
-          if (!rawLeaves || rawLeaves.length === 0) {
-            setLeaveBreakdown([
-              { type: "Vacation", count: 0, color: "bg-sky-500" },
-              { type: "Sick Leave", count: 0, color: "bg-amber-500" },
-              { type: "Emergency", count: 0, color: "bg-rose-500" },
-            ]);
-          } else {
-            setLeaveBreakdown(rawLeaves);
-          }
+          const rawLeaves: LeaveItem[] = leaveRes.data || [];
+
+          // Calculate breakdown dynamically from /Leaves records
+          const counts: Record<string, number> = {
+            Vacation: 0,
+            "Sick Leave": 0,
+            Emergency: 0,
+          };
+
+          rawLeaves.forEach((l) => {
+            const t = l.leaveType || "Vacation";
+            if (counts[t] !== undefined) {
+              counts[t] += 1;
+            } else {
+              counts[t] = 1;
+            }
+          });
+
+          setLeaveBreakdown([
+            {
+              type: "Vacation",
+              count: counts["Vacation"] || 0,
+              color: "bg-sky-500",
+            },
+            {
+              type: "Sick Leave",
+              count: counts["Sick Leave"] || 0,
+              color: "bg-amber-500",
+            },
+            {
+              type: "Emergency",
+              count: counts["Emergency"] || 0,
+              color: "bg-rose-500",
+            },
+          ]);
         }
       } catch (err) {
         console.error("Failed to load analytics", err);

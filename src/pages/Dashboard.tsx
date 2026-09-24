@@ -207,7 +207,7 @@ export default function Dashboard() {
             await Promise.all([
               api.get("/Employees").catch(() => ({ data: [] })),
               api.get("/AttendanceRequests").catch(() => ({ data: [] })),
-              api.get("/LeaveRequests").catch(() => ({ data: [] })),
+              api.get("/Leaves").catch(() => ({ data: [] })),
               api
                 .get("/Dashboard/payroll-summary")
                 .catch(() => ({ data: { totalPayrollThisMonth: 0 } })),
@@ -270,7 +270,7 @@ export default function Dashboard() {
             await Promise.all([
               api.get("/Employees").catch(() => ({ data: [] })),
               api.get("/AttendanceRequests").catch(() => ({ data: [] })),
-              api.get("/LeaveRequests").catch(() => ({ data: [] })),
+              api.get("/Leaves").catch(() => ({ data: [] })),
               api
                 .get("/Dashboard/payroll-summary")
                 .catch(() => ({ data: { totalPayrollThisMonth: 0 } })),
