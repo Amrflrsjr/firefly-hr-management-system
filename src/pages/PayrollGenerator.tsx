@@ -274,10 +274,12 @@ export default function PayrollGenerator() {
           api.get(`/Payroll/calculate-params/${empId}`, {
             params: { payPeriod: period },
           }),
-          api.get(`/Payroll/history/${empId}`).catch(() => ({ data: [] })),
+          api
+            .get(`/Payroll/history/${empId}`)
+            .catch(() => ({ data: { items: [] } })),
         ]);
         setParams(paramsRes.data);
-        setHistoryRecords(historyRes.data || []);
+        setHistoryRecords(historyRes.data?.items || []);
       } catch {
         showToast("Failed to fetch initial payroll data.", "error");
       } finally {
@@ -466,8 +468,8 @@ export default function PayrollGenerator() {
 
       const historyRes = await api
         .get(`/Payroll/history/${selectedEmployee}`)
-        .catch(() => ({ data: [] }));
-      setHistoryRecords(historyRes.data || []);
+        .catch(() => ({ data: { items: [] } }));
+      setHistoryRecords(historyRes.data?.items || []);
 
       loadAllData();
     } catch (err: unknown) {

@@ -107,37 +107,43 @@ export default function PaySlipModal({
   const totalDeduct = caRunning + paySlip.governmentContributions;
 
   const handleDownloadPdf = async () => {
-    if (!paySlip?.id) return;
+    if (!paySlip) return;
     setIsDownloading(true);
 
     try {
-      const response = await api.get(
-        `/Payroll/download-payslip/${paySlip.id}`,
-        {
-          responseType: "blob",
-        },
-      );
+      // Determine if we have a valid database PaySlip ID vs a timestamp/placeholder
+      const isRealDbId =
+        paySlip.id && paySlip.id < 999000 && paySlip.id !== 999;
+
+      let endpoint = "";
+      if (isRealDbId) {
+        endpoint = `/Payroll/download-payslip/${paySlip.id}`;
+      } else {
+        // Fallback to employee download endpoint if we don't have a direct DB payslip ID yet
+        // Extract employee ID if stored, or fallback to the download-payslip route with query parameters
+        endpoint = `/Payroll/download-payslip/999?payPeriod=${encodeURIComponent(paySlip.payPeriod)}`;
+      }
+
+      const response = await api.get(endpoint, {
+        responseType: "blob",
+      });
 
       const blob = new Blob([response.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
 
-      // Format employee name (e.g., ASD_dsa)
       const rawName = paySlip.employeeName || "Employee";
       const sanitizedName = rawName
         .replace(/,/g, "")
         .trim()
         .replace(/\s+/g, "_");
 
-      // Format payslip type code ("15th" or "14-28")
       const payslipType = paySlip.payPeriod?.includes("15th")
         ? "15th"
         : "14-28";
 
-      // Current creation date formatted as YYYY-MM-DD
       const currentDate = new Date().toISOString().split("T")[0];
 
-      // Pattern: employeeName_payslipType_Date
       link.href = url;
       link.download = `${sanitizedName}_${payslipType}_${currentDate}.pdf`;
       link.click();
@@ -211,8 +217,7 @@ export default function PaySlipModal({
                 <span className="text-[11px] text-slate-500 font-medium block mt-1">
                   Daily Rate:{" "}
                   <strong className="font-mono text-slate-700">
-                    ₱{formatCurrency(combinedDailyRate)}{" "}
-                    {/* <-- Ensure this uses combinedDailyRate */}
+                    ₱{formatCurrency(combinedDailyRate)}
                   </strong>
                 </span>
               </div>
