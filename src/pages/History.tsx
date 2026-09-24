@@ -6,8 +6,11 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  UserCheck,
-  ChevronDown,
+  Briefcase,
+  ChevronRight as ChevronRightIcon,
+  ArrowLeft,
+  Calendar,
+  CreditCard,
 } from "lucide-react";
 import api from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
@@ -18,28 +21,14 @@ interface Employee {
   id: number;
   firstName: string;
   lastName: string;
+  dailySalary: number;
+  dailyAllowance: number;
   isAdmin?: boolean;
 }
 
 const ITEMS_PER_PAGE = 5;
 
-// Helper function moved outside component
-const sortHistoryNewestFirst = (data: PaySlipData[]) => {
-  return [...data].sort((a, b) => {
-    const dateA = new Date(a.payPeriodEnd).getTime();
-    const dateB = new Date(b.payPeriodEnd).getTime();
-    if (dateA !== dateB) {
-      return dateB - dateA;
-    }
-    return b.id - a.id;
-  });
-};
-
 export default function History() {
-  const [history, setHistory] = useState<PaySlipData[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "1";
 
@@ -47,10 +36,14 @@ export default function History() {
     role === "Admin" ? "" : loggedInEmployeeId,
   );
 
-  // Initialize loading to true only if a non-admin user starts with an ID
-  const [loading, setLoading] = useState<boolean>(
-    role !== "Admin" && Boolean(loggedInEmployeeId),
-  );
+  const initialTargetId =
+    role === "Admin" ? selectedEmployee : loggedInEmployeeId;
+
+  const [history, setHistory] = useState<PaySlipData[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(Boolean(initialTargetId));
 
   const [viewingPaySlip, setViewingPaySlip] = useState<PaySlipData | null>(
     null,
@@ -77,7 +70,6 @@ export default function History() {
         .get("/Employees")
         .then((res) => {
           if (isMounted && res.data.length > 0) {
-            // Filter out admin employees and sort alphabetically by last name
             const nonAdminEmployees = res.data
               .filter((emp: Employee) => !emp.isAdmin)
               .sort((a: Employee, b: Employee) =>
@@ -93,7 +85,7 @@ export default function History() {
     };
   }, [role]);
 
-  // 2. Fetch History when target employee changes
+  // 2. Fetch Paginated History when target employee or page changes
   useEffect(() => {
     let isMounted = true;
     const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
@@ -102,24 +94,34 @@ export default function History() {
       return;
     }
 
-    api
-      .get(`/Payroll/history/${targetId}`)
-      .then((res) => {
+    const fetchHistory = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get(
+          `/Payroll/history/${targetId}?page=${currentPage}&pageSize=${ITEMS_PER_PAGE}`,
+        );
         if (isMounted) {
-          setHistory(sortHistoryNewestFirst(res.data || []));
+          setHistory(res.data.items || []);
+          setTotalPages(res.data.totalPages || 1);
         }
-      })
-      .catch(() => {
-        if (isMounted) setHistory([]);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+      } catch {
+        if (isMounted) {
+          setHistory([]);
+          setTotalPages(1);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchHistory();
 
     return () => {
       isMounted = false;
     };
-  }, [selectedEmployee, loggedInEmployeeId, role]);
+  }, [selectedEmployee, loggedInEmployeeId, role, currentPage]);
 
   const executeDelete = async () => {
     if (deleteId === null) return;
@@ -129,8 +131,11 @@ export default function History() {
 
       const targetId = role === "Admin" ? selectedEmployee : loggedInEmployeeId;
       if (targetId) {
-        const res = await api.get(`/Payroll/history/${targetId}`);
-        setHistory(sortHistoryNewestFirst(res.data || []));
+        const res = await api.get(
+          `/Payroll/history/${targetId}?page=${currentPage}&pageSize=${ITEMS_PER_PAGE}`,
+        );
+        setHistory(res.data.items || []);
+        setTotalPages(res.data.totalPages || 1);
       }
     } catch {
       showToast("Failed to delete pay slip.", "error");
@@ -139,260 +144,257 @@ export default function History() {
     }
   };
 
-  const totalPages = Math.ceil(history.length / ITEMS_PER_PAGE);
-  const paginatedHistory = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return history.slice(start, start + ITEMS_PER_PAGE);
-  }, [history, currentPage]);
+  // Group current page history items by Month and Year
+  const groupedHistoryByMonth = useMemo(() => {
+    const groups: Record<string, PaySlipData[]> = {};
+    history.forEach((item) => {
+      const date = new Date(item.payPeriodEnd);
+      const monthYear = isNaN(date.getTime())
+        ? "General History"
+        : date.toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          });
+
+      if (!groups[monthYear]) {
+        groups[monthYear] = [];
+      }
+      groups[monthYear].push(item);
+    });
+    return groups;
+  }, [history]);
+
+  const currentEmployeeObj = useMemo(() => {
+    return employees.find((e) => String(e.id) === selectedEmployee);
+  }, [employees, selectedEmployee]);
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div className="space-y-5">
         {/* Page Header */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
-            <FileText size={18} />
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            {role === "Admin" && selectedEmployee && (
+              <button
+                onClick={() => {
+                  setSelectedEmployee("");
+                  setHistory([]);
+                  setCurrentPage(1);
+                }}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white border border-transparent hover:border-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Back to Employee List"
+              >
+                <ArrowLeft size={19} />
+              </button>
+            )}
+
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
+              <FileText size={18} />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+                {role === "Admin" && selectedEmployee && currentEmployeeObj
+                  ? `Pay Slip History: ${currentEmployeeObj.lastName}, ${currentEmployeeObj.firstName}`
+                  : "Pay Slip History"}
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {role === "Admin" && !selectedEmployee
+                  ? "Select an employee card below to view their archived payslips."
+                  : "View past computed pay slips and earnings records grouped by month."}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-              Pay Slip History
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              View past computed pay slips and earnings records.
-            </p>
-          </div>
+
+          {role === "Admin" && selectedEmployee && (
+            <button
+              onClick={() => {
+                setSelectedEmployee("");
+                setHistory([]);
+                setCurrentPage(1);
+              }}
+              className="text-xs font-semibold text-slate-600 hover:text-amber-800 bg-white border border-slate-300 px-3 py-2 rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              Switch Employee
+            </button>
+          )}
         </div>
 
-        {/* Main History Workspace Card */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          {/* Employee Selection Bar (For Admins) */}
-          {role === "Admin" && employees.length > 0 && (
-            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50">
-              <div className="max-w-md">
-                <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2 flex items-center gap-1.5">
-                  <UserCheck size={13} className="text-slate-400" />
-                  Select Employee
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedEmployee(val);
-                      setCurrentPage(1);
-                      if (!val) {
-                        setHistory([]);
-                        setLoading(false);
-                      } else {
-                        setLoading(true);
-                      }
-                    }}
-                    className="w-full h-11 appearance-none border border-slate-300 bg-white px-3 pr-10 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
-                  >
-                    <option value="" disabled>
-                      Select an employee...
-                    </option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={String(emp.id)}>
-                        {emp.lastName}, {emp.firstName}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                  />
-                </div>
+        {/* ADMIN VIEW: Employee Selection Grid Cards */}
+        {role === "Admin" && !selectedEmployee ? (
+          <div className="space-y-4">
+            {employees.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 text-xs shadow-sm">
+                No employees available.
               </div>
-            </div>
-          )}
-
-          {/* Desktop History Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                  <th className="py-3.5 px-6">Pay Period</th>
-                  <th className="py-3.5 px-6">Period End Date</th>
-                  <th className="py-3.5 px-6 text-right">Net Receivable</th>
-                  <th className="py-3.5 px-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="py-12 text-center text-slate-400"
-                    >
-                      <Loader2
-                        size={22}
-                        className="animate-spin text-amber-600 mx-auto mb-2"
-                      />
-                      <p className="text-xs font-semibold text-slate-500">
-                        Loading history records...
-                      </p>
-                    </td>
-                  </tr>
-                ) : role === "Admin" && !selectedEmployee ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="py-12 text-center text-slate-400 text-xs font-medium"
-                    >
-                      Please select an employee above to view their pay slip
-                      history.
-                    </td>
-                  </tr>
-                ) : paginatedHistory.length > 0 ? (
-                  paginatedHistory.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-slate-50/60 transition-colors"
-                    >
-                      <td className="py-4 px-6 font-semibold text-slate-900 text-xs">
-                        {item.payPeriod}
-                      </td>
-                      <td className="py-4 px-6 text-slate-600 text-xs font-medium">
-                        {new Date(item.payPeriodEnd).toLocaleDateString()}
-                      </td>
-                      <td className="py-4 px-6 text-right font-mono font-bold text-slate-900 text-xs">
-                        ₱
-                        {item.netReceivable.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="py-4 px-6 text-right space-x-1">
-                        <button
-                          onClick={() => setViewingPaySlip(item)}
-                          className="text-slate-400 hover:text-amber-700 p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer"
-                          title="View Details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        {role === "Admin" && (
-                          <button
-                            onClick={() => setDeleteId(item.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Delete Pay Slip"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="py-12 text-center text-slate-400 text-xs"
-                    >
-                      No pay slip history available for this employee.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile History Card View */}
-          <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
-            {loading ? (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 space-y-2">
-                <Loader2
-                  size={22}
-                  className="animate-spin text-amber-600 mx-auto"
-                />
-                <p className="text-xs font-semibold text-slate-500">
-                  Loading history cards...
-                </p>
-              </div>
-            ) : role === "Admin" && !selectedEmployee ? (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs font-medium">
-                Please select an employee above to view their pay slip history.
-              </div>
-            ) : paginatedHistory.length > 0 ? (
-              paginatedHistory.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3"
-                >
-                  <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-xs">
-                        {item.payPeriod}
-                      </h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        End: {new Date(item.payPeriodEnd).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setViewingPaySlip(item)}
-                        className="p-1.5 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg cursor-pointer"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      {role === "Admin" && (
-                        <button
-                          onClick={() => setDeleteId(item.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-semibold text-slate-500">
-                      Net Receivable:
-                    </span>
-                    <span className="font-mono font-bold text-slate-900 text-sm">
-                      ₱
-                      {item.netReceivable.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))
             ) : (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
-                No pay slip history available.
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {employees.map((emp) => (
+                  <div
+                    key={emp.id}
+                    onClick={() => {
+                      setSelectedEmployee(String(emp.id));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-slate-200 rounded-xl p-5 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between space-y-4 shadow-xs"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm group-hover:text-amber-900 transition-colors">
+                          {emp.lastName}, {emp.firstName}
+                        </h3>
+                        <div className="mt-1.5 space-y-0.5">
+                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <Briefcase size={12} className="text-slate-400" />{" "}
+                            Daily Rate:{" "}
+                            <span className="font-mono font-semibold text-slate-700">
+                              ₱{emp.dailySalary?.toLocaleString()}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <CreditCard size={12} className="text-slate-400" />{" "}
+                            Daily Allowance:{" "}
+                            <span className="font-mono font-semibold text-emerald-600">
+                              ₱{emp.dailyAllowance?.toLocaleString()}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-800 group-hover:bg-amber-100 flex items-center justify-center transition-colors shrink-0">
+                        <ChevronRightIcon size={16} />
+                      </div>
+                    </div>
+
+                    <button className="w-full bg-slate-950 group-hover:bg-(--primary) group-hover:text-slate-950 text-white py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer">
+                      <FileText size={14} /> View Payslip History
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+        ) : (
+          /* HISTORY LIST & MONTHLY SECTIONS VIEW */
+          <div className="space-y-6">
+            {Object.keys(groupedHistoryByMonth).length > 0 && !loading && (
+              <div className="space-y-6">
+                {Object.entries(groupedHistoryByMonth).map(
+                  ([monthYear, items]) => (
+                    <div
+                      key={monthYear}
+                      className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+                    >
+                      {/* Month Section Header */}
+                      <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-200 flex items-center gap-2">
+                        <Calendar size={15} className="text-amber-700" />
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800">
+                          {monthYear}
+                        </h2>
+                        <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                          {items.length}{" "}
+                          {items.length === 1 ? "payslip" : "payslips"}
+                        </span>
+                      </div>
 
-          {/* Pagination Controls Footer */}
-          {totalPages > 1 && (
-            <div className="p-4 bg-slate-50/60 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronRight size={15} />
-                </button>
+                      {/* Month Items Table / Cards */}
+                      <div className="divide-y divide-slate-100">
+                        {items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
+                          >
+                            <div>
+                              <h3 className="font-bold text-slate-900 text-xs">
+                                {item.payPeriod}
+                              </h3>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                Cutoff End Date:{" "}
+                                {new Date(
+                                  item.payPeriodEnd,
+                                ).toLocaleDateString()}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                              <span className="font-mono font-bold text-slate-900 text-sm">
+                                ₱
+                                {item.netReceivable.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setViewingPaySlip(item)}
+                                  className="text-slate-600 hover:text-amber-700 bg-slate-100 hover:bg-amber-50 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+                                {role === "Admin" && (
+                                  <button
+                                    onClick={() => setDeleteId(item.id)}
+                                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Delete Record"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ),
+                )}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {/* Loading & Empty States */}
+            {loading ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 space-y-2 shadow-sm">
+                <Loader2
+                  size={24}
+                  className="animate-spin text-amber-600 mx-auto"
+                />
+                <p className="text-xs font-semibold text-slate-500">
+                  Loading history records...
+                </p>
+              </div>
+            ) : history.length === 0 && !loading ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 text-xs shadow-sm">
+                No pay slip history available for this employee.
+              </div>
+            ) : null}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center justify-between text-xs font-semibold text-slate-600">
+                <span>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="p-2 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <PaySlipModal

@@ -88,16 +88,28 @@ export default function AdminDashboard({
         const [payrollRes, attendanceRes, leaveRes] = await Promise.all([
           api.get("/Dashboard/payroll-trends").catch(() => ({ data: [] })),
           api.get("/Dashboard/attendance-trends").catch(() => ({ data: [] })),
-          api.get("/Leaves").catch(() => ({ data: [] })), // Updated to use /Leaves endpoint
+          api.get("/Leaves").catch(() => ({ data: [] })),
         ]);
 
         if (isMounted) {
           setPayrollTrends(payrollRes.data);
-          setAttendanceTrends(attendanceRes.data);
+
+          // Ensure Saturday is represented in the attendance trend list
+          const rawAttendance: AttendanceTrendItem[] = attendanceRes.data || [];
+          const defaultDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+          const completeAttendance = defaultDays.map((day) => {
+            const found = rawAttendance.find(
+              (item) =>
+                item.day.toLowerCase().slice(0, 3) === day.toLowerCase(),
+            );
+            return found || { day, attendanceRate: 0 };
+          });
+
+          setAttendanceTrends(completeAttendance);
 
           const rawLeaves: LeaveItem[] = leaveRes.data || [];
 
-          // Calculate breakdown dynamically from /Leaves records
           const counts: Record<string, number> = {
             Vacation: 0,
             "Sick Leave": 0,
@@ -278,17 +290,18 @@ export default function AdminDashboard({
           ) : (
             <div className="space-y-3 pt-2">
               {payrollTrends.map((trend, idx) => {
+                const absAmount = Math.abs(trend.amount); // Force positive amount value
                 const maxVal = Math.max(
-                  ...payrollTrends.map((t) => t.amount),
+                  ...payrollTrends.map((t) => Math.abs(t.amount)),
                   1,
                 );
-                const pct = Math.round((trend.amount / maxVal) * 100);
+                const pct = Math.round((absAmount / maxVal) * 100);
                 return (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold text-slate-700">
                       <span>{trend.period}</span>
                       <span className="font-mono">
-                        {formatCurrency(trend.amount)}
+                        {formatCurrency(absAmount)}
                       </span>
                     </div>
                     <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -318,9 +331,9 @@ export default function AdminDashboard({
             </p>
 
             {isLoadingCharts ? (
-              <SkeletonBlock className="h-36 rounded-lg" />
+              <SkeletonBlock className="h-48 rounded-lg" />
             ) : (
-              <div className="space-y-2.5 pt-1">
+              <div className="space-y-2 pt-1">
                 {attendanceTrends.map((item, idx) => (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold text-slate-700">

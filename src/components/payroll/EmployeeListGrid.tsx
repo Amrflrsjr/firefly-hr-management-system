@@ -5,6 +5,8 @@ import {
   Clock,
   Loader2,
   CalendarDays,
+  CreditCard,
+  Eye,
 } from "lucide-react";
 
 interface Employee {
@@ -12,6 +14,7 @@ interface Employee {
   firstName: string;
   lastName: string;
   dailySalary: number;
+  dailyAllowance: number;
 }
 
 interface EmployeeSummaryParams {
@@ -26,6 +29,8 @@ interface EmployeeListGridProps {
   payPeriodType: "15th" | "30th";
   onPayPeriodChange: (type: "15th" | "30th") => void;
   onSelectEmployee: (id: number) => void;
+  hasExistingRecord: (empId: number) => boolean;
+  onViewPayslip: (empId: number) => void;
 }
 
 export default function EmployeeListGrid({
@@ -35,10 +40,12 @@ export default function EmployeeListGrid({
   payPeriodType,
   onPayPeriodChange,
   onSelectEmployee,
+  hasExistingRecord,
+  onViewPayslip,
 }: EmployeeListGridProps) {
   return (
     <div className="space-y-4">
-      {/* Cutoff Selector Bar */}
+      {/* Cutoff Selector Toggle Bar */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-2">
           <CalendarDays size={16} className="text-amber-700" />
@@ -46,17 +53,29 @@ export default function EmployeeListGrid({
             Pay Period Cutoff Overview
           </span>
         </div>
-        <div className="w-full sm:w-auto">
-          <select
-            value={payPeriodType}
-            onChange={(e) =>
-              onPayPeriodChange(e.target.value as "15th" | "30th")
-            }
-            className="w-full sm:w-72 h-10 border border-slate-300 bg-white px-3 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
+
+        {/* Segmented Pill Toggle */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0 w-full sm:w-auto">
+          <button
+            onClick={() => onPayPeriodChange("15th")}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              payPeriodType === "15th"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
           >
-            <option value="15th">15th Pay Period (29th/30th - 13th)</option>
-            <option value="30th">End of Month Pay Period (14th - 28th)</option>
-          </select>
+            15th Pay Period (29th - 13th)
+          </button>
+          <button
+            onClick={() => onPayPeriodChange("30th")}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              payPeriodType === "30th"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            End of Month (14th - 28th)
+          </button>
         </div>
       </div>
 
@@ -79,23 +98,60 @@ export default function EmployeeListGrid({
               daysWorked: 0,
               overtimeHours: 0,
             };
+            const alreadyGenerated = hasExistingRecord(emp.id);
+
             return (
               <div
                 key={emp.id}
-                onClick={() => onSelectEmployee(emp.id)}
-                className="bg-white border border-slate-200 rounded-xl p-5 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between space-y-4 shadow-xs"
+                onClick={() => {
+                  if (alreadyGenerated) {
+                    onViewPayslip(emp.id);
+                  } else {
+                    onSelectEmployee(emp.id);
+                  }
+                }}
+                className={`bg-white border rounded-xl p-5 transition-all cursor-pointer group flex flex-col justify-between space-y-4 shadow-xs ${
+                  alreadyGenerated
+                    ? "border-emerald-300 bg-emerald-50/20 hover:border-emerald-400 shadow-xs"
+                    : "border-slate-200 hover:border-amber-400 hover:shadow-md"
+                }`}
               >
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm group-hover:text-amber-900 transition-colors">
-                      {emp.lastName}, {emp.firstName}
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                      <Briefcase size={12} /> Daily Rate: ₱
-                      {emp.dailySalary?.toLocaleString()}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-slate-950 transition-colors">
+                        {emp.lastName}, {emp.firstName}
+                      </h3>
+                      {alreadyGenerated && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                          Generated
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 space-y-0.5">
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <Briefcase size={12} className="text-slate-400" /> Daily
+                        Rate:{" "}
+                        <span className="font-mono font-semibold text-slate-700">
+                          ₱{emp.dailySalary?.toLocaleString()}
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <CreditCard size={12} className="text-slate-400" />{" "}
+                        Daily Allowance:{" "}
+                        <span className="font-mono font-semibold text-emerald-600">
+                          ₱{emp.dailyAllowance?.toLocaleString()}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-800 group-hover:bg-amber-100 flex items-center justify-center transition-colors shrink-0">
+                  <div
+                    className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                      alreadyGenerated
+                        ? "bg-emerald-100 text-emerald-800 group-hover:bg-emerald-200"
+                        : "bg-amber-50 text-amber-800 group-hover:bg-amber-100"
+                    }`}
+                  >
                     <ChevronRight size={16} />
                   </div>
                 </div>
@@ -121,9 +177,27 @@ export default function EmployeeListGrid({
                   </div>
                 </div>
 
-                <button className="w-full bg-slate-900 group-hover:bg-(--primary) group-hover:text-slate-950 text-white py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer">
-                  <Calculator size={14} /> Make Payroll
-                </button>
+                {alreadyGenerated ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewPayslip(emp.id);
+                    }}
+                    className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Eye size={14} /> View Payslip
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectEmployee(emp.id);
+                    }}
+                    className="w-full bg-slate-900 group-hover:bg-(--primary) group-hover:text-slate-950 text-white py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Calculator size={14} /> Make Payroll
+                  </button>
+                )}
               </div>
             );
           })}

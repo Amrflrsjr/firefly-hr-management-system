@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import {
@@ -7,9 +7,9 @@ import {
   RefreshCw,
   Loader2,
   CalendarDays,
-  FileText,
   AlertCircle,
   Wallet,
+  Eye,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
@@ -87,6 +87,9 @@ export default function PayrollGenerator() {
   const [employeeSummaries, setEmployeeSummaries] = useState<
     Record<number, EmployeeSummaryParams>
   >({});
+  const [employeeHistories, setEmployeeHistories] = useState<
+    Record<number, PaySlipHistoryItem[]>
+  >({});
   const [loadingSummaries, setLoadingSummaries] = useState<boolean>(true);
   const [historyRecords, setHistoryRecords] = useState<PaySlipHistoryItem[]>(
     [],
@@ -126,12 +129,33 @@ export default function PayrollGenerator() {
     [],
   );
 
-  useEffect(() => {
-    let isMounted = true;
-    api
-      .get("/Employees")
-      .then(async (res) => {
-        const nonAdminEmployees = res.data
+  const hasExistingRecordForPeriod = useCallback(
+    (historyList: PaySlipHistoryItem[]) => {
+      const currentMonth = new Date().getMonth();
+      return historyList.some((p) => {
+        const pDate = new Date(p.payPeriodEnd);
+        return (
+          p.payPeriod?.toLowerCase().includes(payPeriodType.toLowerCase()) &&
+          pDate.getMonth() === currentMonth
+        );
+      });
+    },
+    [payPeriodType],
+  );
+
+  const loadAllData = useCallback(
+    async (targetPeriod?: "15th" | "30th") => {
+      const activePeriod = targetPeriod || payPeriodType;
+      const isMounted = true;
+      try {
+        const [empRes, statusRes] = await Promise.all([
+          api.get("/Employees"),
+          api.get("/Payroll/status-summary", {
+            params: { payPeriod: activePeriod },
+          }),
+        ]);
+
+        const nonAdminEmployees = empRes.data
           .filter((emp: Employee) => !emp.isAdmin)
           .sort((a: Employee, b: Employee) =>
             a.lastName.localeCompare(b.lastName),
@@ -140,14 +164,54 @@ export default function PayrollGenerator() {
         if (!isMounted) return;
         setEmployees(nonAdminEmployees);
 
+        const generatedEmployeeIds: number[] = statusRes.data || [];
+        const historiesMap: Record<number, PaySlipHistoryItem[]> = {};
+
+        nonAdminEmployees.forEach((emp: Employee) => {
+          if (generatedEmployeeIds.includes(emp.id)) {
+            historiesMap[emp.id] = [
+              {
+                id: 999,
+                payPeriod:
+                  activePeriod === "15th"
+                    ? "15th Pay Period"
+                    : "End of Month Pay Period",
+                payPeriodEnd: new Date().toISOString(),
+                netReceivable: 0,
+                basicPay: 0,
+                overtimePay: 0,
+                regularHolidayPay: 0,
+                specialHolidayPay: 0,
+                leavePay: 0,
+                grossEarnings: 0,
+                lateDeduction: 0,
+                undertimeDeduction: 0,
+                absentDeduction: 0,
+                cashAdvanceDeduction: 0,
+                sssDeduction: 0,
+                philHealthDeduction: 0,
+                pagIbigDeduction: 0,
+                governmentContributions: 0,
+                totalDeductions: 0,
+                dailySalary: emp.dailySalary,
+              },
+            ];
+          } else {
+            historiesMap[emp.id] = [];
+          }
+        });
+
         setLoadingSummaries(true);
         const summaries: Record<number, EmployeeSummaryParams> = {};
+
         await Promise.all(
           nonAdminEmployees.map(async (emp: Employee) => {
             try {
               const paramRes = await api.get(
                 `/Payroll/calculate-params/${emp.id}`,
-                { params: { payPeriod: payPeriodType } },
+                {
+                  params: { payPeriod: activePeriod },
+                },
               );
               summaries[emp.id] = {
                 daysWorked: paramRes.data.daysWorked || 0,
@@ -161,20 +225,23 @@ export default function PayrollGenerator() {
 
         if (isMounted) {
           setEmployeeSummaries(summaries);
+          setEmployeeHistories(historiesMap);
           setLoadingSummaries(false);
         }
-      })
-      .catch(() => {
+      } catch {
         if (isMounted) {
           showToast("Failed to load employees list.", "error");
           setLoadingSummaries(false);
         }
-      });
+      }
+    },
+    [payPeriodType, showToast],
+  );
 
-    return () => {
-      isMounted = false;
-    };
-  }, [payPeriodType, showToast]);
+  // Initial data load on first mount
+  useMemo(() => {
+    loadAllData();
+  }, [loadAllData]);
 
   const fetchCalculatedParams = useCallback(async () => {
     if (!selectedEmployee) return;
@@ -196,52 +263,37 @@ export default function PayrollGenerator() {
   const handlePayPeriodChange = (type: "15th" | "30th") => {
     setPayPeriodType(type);
     setPayrollData(null);
+    loadAllData(type);
   };
 
-  useEffect(() => {
-    if (!selectedEmployee) return;
-
-    let isMounted = true;
-    const loadInitialData = async () => {
+  const fetchEmployeeDetails = useCallback(
+    async (empId: number, period: "15th" | "30th") => {
       setLoadingParams(true);
       try {
         const [paramsRes, historyRes] = await Promise.all([
-          api.get(`/Payroll/calculate-params/${selectedEmployee}`, {
-            params: { payPeriod: payPeriodType },
+          api.get(`/Payroll/calculate-params/${empId}`, {
+            params: { payPeriod: period },
           }),
-          api
-            .get(`/Payroll/history/${selectedEmployee}`)
-            .catch(() => ({ data: [] })),
+          api.get(`/Payroll/history/${empId}`).catch(() => ({ data: [] })),
         ]);
-
-        if (!isMounted) return;
         setParams(paramsRes.data);
         setHistoryRecords(historyRes.data || []);
       } catch {
-        if (isMounted) {
-          showToast("Failed to fetch initial payroll data.", "error");
-        }
+        showToast("Failed to fetch initial payroll data.", "error");
       } finally {
-        if (isMounted) setLoadingParams(false);
+        setLoadingParams(false);
       }
-    };
-
-    loadInitialData();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedEmployee, payPeriodType, showToast]);
+    },
+    [showToast],
+  );
 
   const existingRecord = useMemo(() => {
-    const periodName =
-      payPeriodType === "15th" ? "15th Pay Period" : "End of Month Pay Period";
-    const currentMonth = new Date().getMonth();
-
     return historyRecords.find((p) => {
       const pDate = new Date(p.payPeriodEnd);
+      const currentMonth = new Date().getMonth();
       return (
-        p.payPeriod?.toLowerCase().includes(payPeriodType.toLowerCase()) ||
-        (p.payPeriod === periodName && pDate.getMonth() === currentMonth)
+        p.payPeriod?.toLowerCase().includes(payPeriodType.toLowerCase()) &&
+        pDate.getMonth() === currentMonth
       );
     });
   }, [historyRecords, payPeriodType]);
@@ -326,41 +378,48 @@ export default function PayrollGenerator() {
     };
   }, [currentEmployeeObj, params]);
 
-  const viewExistingPaySlip = () => {
-    if (!existingRecord) return;
+  const viewPaySlipForEmployee = (
+    empId: number,
+    recordToView: PaySlipHistoryItem,
+  ) => {
+    const emp = employees.find((e) => e.id === empId);
+    if (!emp || !recordToView) return;
+
     const formattedPaySlip: PaySlipData = {
-      id: existingRecord.id,
-      payPeriod: existingRecord.payPeriod || payPeriodType,
-      payPeriodEnd: existingRecord.payPeriodEnd,
-      employeeName: currentEmployeeObj
-        ? `${currentEmployeeObj.lastName}, ${currentEmployeeObj.firstName}`
-        : "Employee",
-      dailySalary:
-        existingRecord.dailySalary || currentEmployeeObj?.dailySalary || 0,
-      dailyAllowance: currentEmployeeObj?.dailyAllowance || 0,
-      basicPay: existingRecord.basicPay,
-      overtimePay: existingRecord.overtimePay,
-      regularHolidayPay: existingRecord.regularHolidayPay,
-      specialHolidayPay: existingRecord.specialHolidayPay,
-      leavePay: existingRecord.leavePay,
-      grossEarnings: existingRecord.grossEarnings,
-      lateDeduction: existingRecord.lateDeduction,
-      undertimeDeduction: existingRecord.undertimeDeduction,
-      absentDeduction: existingRecord.absentDeduction,
-      cashAdvanceDeduction: existingRecord.cashAdvanceDeduction,
-      sssDeduction: existingRecord.sssDeduction,
-      philHealthDeduction: existingRecord.philHealthDeduction,
-      pagIbigDeduction: existingRecord.pagIbigDeduction,
-      governmentContributions: existingRecord.governmentContributions,
-      totalDeductions: existingRecord.totalDeductions,
-      netReceivable: existingRecord.netReceivable,
+      id: recordToView.id,
+      payPeriod: recordToView.payPeriod || payPeriodType,
+      payPeriodEnd: recordToView.payPeriodEnd,
+      employeeName: `${emp.lastName}, ${emp.firstName}`,
+      dailySalary: recordToView.dailySalary || emp.dailySalary || 0,
+      dailyAllowance: emp.dailyAllowance || 0,
+      basicPay: recordToView.basicPay,
+      overtimePay: recordToView.overtimePay,
+      regularHolidayPay: recordToView.regularHolidayPay,
+      specialHolidayPay: recordToView.specialHolidayPay,
+      leavePay: recordToView.leavePay,
+      grossEarnings: recordToView.grossEarnings,
+      lateDeduction: recordToView.lateDeduction,
+      undertimeDeduction: recordToView.undertimeDeduction,
+      absentDeduction: recordToView.absentDeduction,
+      cashAdvanceDeduction: recordToView.cashAdvanceDeduction,
+      sssDeduction: recordToView.sssDeduction,
+      philHealthDeduction: recordToView.philHealthDeduction,
+      pagIbigDeduction: recordToView.pagIbigDeduction,
+      governmentContributions: recordToView.governmentContributions,
+      totalDeductions: recordToView.totalDeductions,
+      netReceivable: recordToView.netReceivable,
     };
     setPayrollData(formattedPaySlip);
   };
 
+  const viewExistingPaySlip = () => {
+    if (!existingRecord || !currentEmployeeObj) return;
+    viewPaySlipForEmployee(currentEmployeeObj.id, existingRecord);
+  };
+
   const executeCompute = async () => {
-    if (!selectedEmployee) {
-      showToast("Please select a valid employee first.", "error");
+    if (!selectedEmployee || existingRecord) {
+      showToast("Payroll already exists for this period.", "error");
       return;
     }
 
@@ -376,10 +435,14 @@ export default function PayrollGenerator() {
 
       const formattedPaySlip: PaySlipData = {
         id: data.id || Date.now(),
-        payPeriod: payPeriodType === "15th" ? "15th Cutoff" : "30th Cutoff",
+        payPeriod:
+          payPeriodType === "15th"
+            ? "15th Pay Period"
+            : "End of Month Pay Period",
         payPeriodEnd: new Date().toISOString(),
         employeeName: data.employeeName,
         dailySalary: data.dailySalary,
+        dailyAllowance: currentEmployeeObj?.dailyAllowance || 0,
         basicPay: data.basicPay,
         overtimePay: data.overtimePay,
         regularHolidayPay: data.regularHolidayPay,
@@ -405,6 +468,8 @@ export default function PayrollGenerator() {
         .get(`/Payroll/history/${selectedEmployee}`)
         .catch(() => ({ data: [] }));
       setHistoryRecords(historyRes.data || []);
+
+      loadAllData();
     } catch (err: unknown) {
       const errorMsg =
         (err as { response?: { data?: string } })?.response?.data ||
@@ -425,6 +490,7 @@ export default function PayrollGenerator() {
               onClick={() => {
                 if (selectedEmployee !== null) {
                   setSelectedEmployee(null);
+                  loadAllData();
                 } else {
                   navigate("/dashboard");
                 }
@@ -463,6 +529,26 @@ export default function PayrollGenerator() {
               setSelectedEmployee(id);
               setPayrollData(null);
               setUnlockedFields({});
+              fetchEmployeeDetails(id, payPeriodType);
+            }}
+            hasExistingRecord={(empId) =>
+              hasExistingRecordForPeriod(employeeHistories[empId] || [])
+            }
+            onViewPayslip={(empId) => {
+              const hist = employeeHistories[empId] || [];
+              const currentMonth = new Date().getMonth();
+              const match = hist.find((p) => {
+                const pDate = new Date(p.payPeriodEnd);
+                return (
+                  p.payPeriod
+                    ?.toLowerCase()
+                    .includes(payPeriodType.toLowerCase()) &&
+                  pDate.getMonth() === currentMonth
+                );
+              });
+              if (match) {
+                viewPaySlipForEmployee(empId, match);
+              }
             }}
           />
         ) : (
@@ -484,7 +570,10 @@ export default function PayrollGenerator() {
                 </div>
               </div>
               <button
-                onClick={() => setSelectedEmployee(null)}
+                onClick={() => {
+                  setSelectedEmployee(null);
+                  loadAllData();
+                }}
                 className="w-full sm:w-auto text-xs font-semibold text-slate-600 hover:text-amber-800 bg-white border border-slate-300 px-3 py-2 rounded-lg shadow-xs transition-colors cursor-pointer"
               >
                 Back to Employee List
@@ -492,18 +581,21 @@ export default function PayrollGenerator() {
             </div>
 
             {existingRecord && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                    <AlertCircle size={18} />
+                  <div className="h-9 w-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                    <AlertCircle size={20} />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-amber-900">
-                      Payslip Already Generated for this Period
+                      Payroll Already Generated for this Period
                     </h4>
                     <p className="text-[11px] text-amber-700 mt-0.5">
-                      A {payPeriodType} payslip already exists for this
-                      employee. Net Pay:{" "}
+                      This employee already has a computed payslip for the{" "}
+                      {payPeriodType === "15th"
+                        ? "15th Pay Period"
+                        : "End of Month"}{" "}
+                      cutoff. Net Pay:{" "}
                       <strong className="font-mono">
                         ₱
                         {existingRecord.netReceivable.toLocaleString(
@@ -516,46 +608,42 @@ export default function PayrollGenerator() {
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                   <button
-                    onClick={viewExistingPaySlip}
-                    className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    onClick={() => viewExistingPaySlip()}
+                    className="flex-1 sm:flex-none bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                   >
-                    <FileText size={14} /> View Payslip
+                    <Eye size={15} /> View Payroll
                   </button>
                   <button
                     onClick={() => navigate("/history")}
-                    className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    className="flex-1 sm:flex-none bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-center"
                   >
-                    Go to History to Delete
+                    Manage in History
                   </button>
                 </div>
               </div>
             )}
 
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="p-5 sm:p-6 border-b border-slate-200">
-                <div className="max-w-md">
-                  <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2 flex items-center gap-1.5">
-                    <CalendarDays size={13} className="text-slate-400" />
-                    Pay Period Cutoff
-                  </label>
-                  <select
-                    value={payPeriodType}
-                    onChange={(e) =>
-                      handlePayPeriodChange(e.target.value as "15th" | "30th")
-                    }
-                    disabled={isComputing}
-                    className="w-full h-11 border border-slate-300 bg-white px-3 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 disabled:bg-slate-50 cursor-pointer"
-                  >
-                    <option value="15th">
-                      15th Pay Period (29th/30th - 13th)
-                    </option>
-                    <option value="30th">
-                      End of Month Pay Period (14th - 28th)
-                    </option>
-                  </select>
+              {/* Read-Only Pay Period Banner */}
+              <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <CalendarDays size={16} className="text-amber-700" />
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Active Pay Period Cutoff
+                    </span>
+                    <span className="text-xs font-bold text-slate-800">
+                      {payPeriodType === "15th"
+                        ? "15th Pay Period (29th - 13th)"
+                        : "End of Month (14th - 28th)"}
+                    </span>
+                  </div>
                 </div>
+                <span className="text-[10px] bg-slate-200 text-slate-700 font-semibold px-2.5 py-1 rounded-md">
+                  Read-Only Selected from Overview
+                </span>
               </div>
 
               <div className="p-5 sm:p-6">
@@ -565,8 +653,10 @@ export default function PayrollGenerator() {
                   </h2>
                   <button
                     onClick={fetchCalculatedParams}
-                    disabled={loadingParams || isComputing}
-                    className="text-xs text-slate-600 hover:text-amber-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    disabled={
+                      loadingParams || isComputing || Boolean(existingRecord)
+                    }
+                    className="text-xs text-slate-600 hover:text-amber-700 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     <RefreshCw
                       size={13}
@@ -607,8 +697,8 @@ export default function PayrollGenerator() {
                     ]}
                     params={params}
                     unlockedFields={unlockedFields}
-                    loadingParams={loadingParams}
-                    isComputing={isComputing}
+                    loadingParams={loadingParams || Boolean(existingRecord)}
+                    isComputing={isComputing || Boolean(existingRecord)}
                     onInputChange={handleInputChange}
                     onToggleLock={toggleFieldLock}
                   />
@@ -632,8 +722,8 @@ export default function PayrollGenerator() {
                     ]}
                     params={params}
                     unlockedFields={unlockedFields}
-                    loadingParams={loadingParams}
-                    isComputing={isComputing}
+                    loadingParams={loadingParams || Boolean(existingRecord)}
+                    isComputing={isComputing || Boolean(existingRecord)}
                     onInputChange={handleInputChange}
                     onToggleLock={toggleFieldLock}
                   />
@@ -694,30 +784,36 @@ export default function PayrollGenerator() {
 
                 <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <p className="text-[11px] text-slate-400">
-                    Review calculated parameters before generating payslip.
+                    {existingRecord
+                      ? "Payroll is locked. Delete the record from history to re-compute."
+                      : "Review calculated parameters before generating payslip."}
                   </p>
-                  <button
-                    onClick={() => setShowConfirmModal(true)}
-                    disabled={isComputing || !selectedEmployee}
-                    className="w-full sm:w-auto min-w-65 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-5 py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50"
-                  >
-                    {isComputing ? (
-                      <>
-                        <Loader2 size={15} className="animate-spin" />
-                        Computing Payroll...
-                      </>
-                    ) : existingRecord ? (
-                      <>
-                        <RefreshCw size={15} />
-                        Re-compute & Update Payslip
-                      </>
-                    ) : (
-                      <>
-                        <Calculator size={15} />
-                        Compute Payroll & Generate Payslip
-                      </>
-                    )}
-                  </button>
+                  {existingRecord ? (
+                    <button
+                      onClick={() => viewExistingPaySlip()}
+                      className="w-full sm:w-auto min-w-65 bg-amber-700 hover:bg-amber-800 text-white px-5 py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <Eye size={15} /> View Payroll
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowConfirmModal(true)}
+                      disabled={isComputing || !selectedEmployee}
+                      className="w-full sm:w-auto min-w-65 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-5 py-3 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50"
+                    >
+                      {isComputing ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          Computing Payroll...
+                        </>
+                      ) : (
+                        <>
+                          <Calculator size={15} />
+                          Compute Payroll & Generate Payslip
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -734,17 +830,9 @@ export default function PayrollGenerator() {
 
       <ConfirmModal
         isOpen={showConfirmModal}
-        title={
-          existingRecord
-            ? "Overwrite Existing Payroll?"
-            : "Confirm Payroll Computation"
-        }
-        message={
-          existingRecord
-            ? "A payslip has already been generated. Re-compute and update?"
-            : "Are you sure you want to compute payroll?"
-        }
-        confirmText={existingRecord ? "Update & Re-compute" : "Compute"}
+        title="Confirm Payroll Computation"
+        message="Are you sure you want to compute payroll for this employee?"
+        confirmText="Compute"
         type="primary"
         onConfirm={executeCompute}
         onClose={() => setShowConfirmModal(false)}

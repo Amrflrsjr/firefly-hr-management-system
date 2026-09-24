@@ -67,6 +67,8 @@ export default function Timesheet() {
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const [recordsPage, setRecordsPage] = useState<number>(1);
+  const [totalRecordsPages, setTotalRecordsPages] = useState<number>(1);
+
   const [requestsPage, setRequestsPage] = useState<number>(1);
 
   const role = localStorage.getItem("role") || "Employee";
@@ -105,26 +107,28 @@ export default function Timesheet() {
   );
 
   const fetchTimesheetData = useCallback(
-    async (targetId: string, dateFilter: string) => {
+    async (targetId: string, dateFilter: string, page: number) => {
       setLoadingData(true);
       const effectiveId = role === "Admin" ? targetId : loggedInEmployeeId;
 
       try {
-        let recordsEndpoint = "/TimeRecords";
+        let recordsEndpoint = `/TimeRecords?page=${page}&pageSize=${ITEMS_PER_PAGE}`;
         if (effectiveId && effectiveId !== "all") {
           recordsEndpoint = dateFilter
-            ? `/TimeRecords/employee/${effectiveId}?date=${dateFilter}`
-            : `/TimeRecords/employee/${effectiveId}`;
+            ? `/TimeRecords/employee/${effectiveId}?date=${dateFilter}&page=${page}&pageSize=${ITEMS_PER_PAGE}`
+            : `/TimeRecords/employee/${effectiveId}?page=${page}&pageSize=${ITEMS_PER_PAGE}`;
         } else {
           recordsEndpoint = dateFilter
-            ? `/TimeRecords?date=${dateFilter}`
-            : `/TimeRecords`;
+            ? `/TimeRecords?date=${dateFilter}&page=${page}&pageSize=${ITEMS_PER_PAGE}`
+            : `/TimeRecords?page=${page}&pageSize=${ITEMS_PER_PAGE}`;
         }
 
         const res = await api.get(recordsEndpoint);
-        setRecords(res.data || []);
+        setRecords(res.data.items || []);
+        setTotalRecordsPages(res.data.totalPages || 1);
       } catch {
         setRecords([]);
+        setTotalRecordsPages(1);
       }
 
       try {
@@ -158,12 +162,16 @@ export default function Timesheet() {
             );
 
           setEmployees(nonAdminEmployees);
-          await fetchTimesheetData(selectedEmployee || "all", filterDate);
+          await fetchTimesheetData(
+            selectedEmployee || "all",
+            filterDate,
+            recordsPage,
+          );
         } catch {
           if (isMounted) setLoadingData(false);
         }
       } else if (loggedInEmployeeId) {
-        await fetchTimesheetData(loggedInEmployeeId, filterDate);
+        await fetchTimesheetData(loggedInEmployeeId, filterDate, recordsPage);
       } else {
         if (isMounted) setLoadingData(false);
       }
@@ -177,6 +185,7 @@ export default function Timesheet() {
     selectedEmployee,
     filterDate,
     loggedInEmployeeId,
+    recordsPage,
     fetchTimesheetData,
   ]);
 
@@ -192,7 +201,7 @@ export default function Timesheet() {
         try {
           await api.delete(`/TimeRecords/${id}`);
           showToast("Time record deleted successfully.");
-          fetchTimesheetData(selectedEmployee, filterDate);
+          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
         } catch {
           showToast("Failed to delete time record.", "error");
         } finally {
@@ -214,7 +223,7 @@ export default function Timesheet() {
         try {
           await api.delete(`/AttendanceRequests/${id}`);
           showToast("Attendance request deleted successfully.");
-          fetchTimesheetData(selectedEmployee, filterDate);
+          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
         } catch {
           showToast("Failed to delete request.", "error");
         } finally {
@@ -258,7 +267,7 @@ export default function Timesheet() {
       }
       setShowManualModal(false);
       setManualDate("");
-      fetchTimesheetData(selectedEmployee, filterDate);
+      fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
     } catch (err: unknown) {
       const errorMsg =
         (err as { response?: { data?: string } })?.response?.data ||
@@ -284,7 +293,7 @@ export default function Timesheet() {
         try {
           await api.put(`/AttendanceRequests/${id}/approve`);
           showToast("Attendance request approved and logged!");
-          fetchTimesheetData(selectedEmployee, filterDate);
+          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
         } catch (err: unknown) {
           const errorMsg =
             (err as { response?: { data?: string } })?.response?.data ||
@@ -314,7 +323,7 @@ export default function Timesheet() {
         try {
           await api.put(`/AttendanceRequests/${id}/reject`);
           showToast("Attendance request declined successfully.");
-          fetchTimesheetData(selectedEmployee, filterDate);
+          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
         } catch {
           showToast("Failed to decline request.", "error");
         } finally {
@@ -368,11 +377,6 @@ export default function Timesheet() {
   };
 
   const pendingCount = requests.filter((r) => r.status === "Pending").length;
-  const totalRecordsPages = Math.ceil(records.length / ITEMS_PER_PAGE);
-  const paginatedRecords = useMemo(() => {
-    const start = (recordsPage - 1) * ITEMS_PER_PAGE;
-    return records.slice(start, start + ITEMS_PER_PAGE);
-  }, [records, recordsPage]);
 
   const totalRequestsPages = Math.ceil(requests.length / ITEMS_PER_PAGE);
   const paginatedRequests = useMemo(() => {
@@ -574,8 +578,8 @@ export default function Timesheet() {
                         </p>
                       </td>
                     </tr>
-                  ) : paginatedRecords.length > 0 ? (
-                    paginatedRecords.map((record) => (
+                  ) : records.length > 0 ? (
+                    records.map((record) => (
                       <tr
                         key={record.id}
                         className="hover:bg-slate-50/60 transition-colors"
@@ -807,8 +811,8 @@ export default function Timesheet() {
                     className="animate-spin text-amber-600 mx-auto"
                   />
                 </div>
-              ) : paginatedRecords.length > 0 ? (
-                paginatedRecords.map((record) => (
+              ) : records.length > 0 ? (
+                records.map((record) => (
                   <div
                     key={record.id}
                     className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3"
