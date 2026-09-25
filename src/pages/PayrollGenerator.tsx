@@ -317,52 +317,38 @@ export default function PayrollGenerator() {
 
     const dailyAllowance = currentEmployeeObj.dailyAllowance || 0;
     const dailySalary = currentEmployeeObj.dailySalary || 0;
-    const combinedDailyRate = dailySalary + dailyAllowance;
-    const hourlyRate = dailySalary / 8.0;
+    const actualDailyRate = dailySalary + dailyAllowance;
 
-    const basicPay = combinedDailyRate * params.daysWorked;
-    const overtimePay = params.overtimeHours * hourlyRate * 1.25;
-    const regularHolidayPay = params.regularHolidayHours * hourlyRate * 2.0;
-    const specialHolidayPay = params.specialNonWorkingHours * hourlyRate * 1.3;
-    const leavePay = params.approvedLeaveHours * hourlyRate;
+    const basicPay = actualDailyRate * params.daysWorked;
+    const overtimePay = (params.overtimeHours / 8.0) * actualDailyRate * 1.3;
+    const regularHolidayPay =
+      (params.regularHolidayHours / 8.0) * actualDailyRate * 1.0;
+    const specialHolidayPay =
+      (params.specialNonWorkingHours / 8.0) * actualDailyRate * 1.3;
+    const leavePay = (params.approvedLeaveHours / 8.0) * actualDailyRate;
 
     const grossEarnings =
       basicPay + overtimePay + regularHolidayPay + specialHolidayPay + leavePay;
 
-    const lateDeduction = params.lateHours * hourlyRate;
-    const undertimeDeduction = params.undertimeHours * hourlyRate;
-    const absentDeduction = params.absentDays * combinedDailyRate;
+    const lateDeduction = (params.lateHours / 8.0) * actualDailyRate;
+    const undertimeDeduction = (params.undertimeHours / 8.0) * actualDailyRate;
+    const absentDeduction = params.absentDays * actualDailyRate;
 
     let totalGovtContributions = 0;
     if (currentEmployeeObj.hasGovernmentDeductions) {
       const isPerPeriod = currentEmployeeObj.deductionType === "Per Pay Period";
-      const estimatedMonthlySalary = dailySalary * 26.0;
 
-      const monthlyPagIbig = Math.min(estimatedMonthlySalary * 0.02, 200.0);
-      const pagIbigDeduction = isPerPeriod
-        ? monthlyPagIbig / 2.0
-        : monthlyPagIbig;
+      const monthlySss = 720.0;
+      const monthlyPhilHealth = 360.0;
+      const monthlyPagIbig = 100.0;
 
-      const boundedPhilHealthBase = Math.max(
-        10000.0,
-        Math.min(estimatedMonthlySalary, 100000.0),
-      );
-      const monthlyPhilHealth = boundedPhilHealthBase * 0.025;
-      const philHealthDeduction = isPerPeriod
-        ? monthlyPhilHealth / 2.0
-        : monthlyPhilHealth;
-
-      const monthlySss =
-        estimatedMonthlySalary <= 4250
-          ? 400
-          : estimatedMonthlySalary >= 29750
-            ? 2700
-            : (Math.floor((estimatedMonthlySalary - 4250) / 500) * 500 + 4500) *
-              0.045;
-      const sssDeduction = isPerPeriod ? monthlySss / 2.0 : monthlySss;
-
-      totalGovtContributions =
-        sssDeduction + philHealthDeduction + pagIbigDeduction;
+      if (isPerPeriod) {
+        totalGovtContributions =
+          monthlySss / 2.0 + monthlyPhilHealth / 2.0 + monthlyPagIbig / 2.0;
+      } else {
+        totalGovtContributions =
+          monthlySss + monthlyPhilHealth + monthlyPagIbig;
+      }
     }
 
     const totalDeductions =
@@ -374,44 +360,70 @@ export default function PayrollGenerator() {
     const netReceivable = grossEarnings - totalDeductions;
 
     return {
-      gross: Math.max(0, grossEarnings),
-      deductions: Math.max(0, totalDeductions),
-      net: Math.max(0, netReceivable),
+      gross: Math.max(0, Math.round(grossEarnings * 100) / 100),
+      deductions: Math.max(0, Math.round(totalDeductions * 100) / 100),
+      net: Math.max(0, Math.round(netReceivable * 100) / 100),
     };
   }, [currentEmployeeObj, params]);
 
-  const viewPaySlipForEmployee = (
+  // Inside PayrollGenerator.tsx or ViewEmployeeModal.tsx
+  const viewPaySlipForEmployee = async (
     empId: number,
     recordToView: PaySlipHistoryItem,
   ) => {
     const emp = employees.find((e) => e.id === empId);
-    if (!emp || !recordToView) return;
+    if (!emp) return;
 
-    const formattedPaySlip: PaySlipData = {
-      id: recordToView.id,
-      payPeriod: recordToView.payPeriod || payPeriodType,
-      payPeriodEnd: recordToView.payPeriodEnd,
-      employeeName: `${emp.lastName}, ${emp.firstName}`,
-      dailySalary: recordToView.dailySalary || emp.dailySalary || 0,
-      dailyAllowance: emp.dailyAllowance || 0,
-      basicPay: recordToView.basicPay,
-      overtimePay: recordToView.overtimePay,
-      regularHolidayPay: recordToView.regularHolidayPay,
-      specialHolidayPay: recordToView.specialHolidayPay,
-      leavePay: recordToView.leavePay,
-      grossEarnings: recordToView.grossEarnings,
-      lateDeduction: recordToView.lateDeduction,
-      undertimeDeduction: recordToView.undertimeDeduction,
-      absentDeduction: recordToView.absentDeduction,
-      cashAdvanceDeduction: recordToView.cashAdvanceDeduction,
-      sssDeduction: recordToView.sssDeduction,
-      philHealthDeduction: recordToView.philHealthDeduction,
-      pagIbigDeduction: recordToView.pagIbigDeduction,
-      governmentContributions: recordToView.governmentContributions,
-      totalDeductions: recordToView.totalDeductions,
-      netReceivable: recordToView.netReceivable,
-    };
-    setPayrollData(formattedPaySlip);
+    try {
+      // Fetch the actual saved payslips from the database history endpoint
+      const res = await api.get(`/Payroll/history/${empId}`);
+      const items = res.data?.items || [];
+
+      // Find the record matching the active pay period and current month
+      const currentMonth = new Date().getMonth();
+      const actualRecord =
+        items.find((p: PaySlipHistoryItem) => {
+          const pDate = new Date(p.payPeriodEnd);
+          return (
+            p.payPeriod?.toLowerCase().includes(payPeriodType.toLowerCase()) &&
+            pDate.getMonth() === currentMonth
+          );
+        }) || (recordToView.id !== 999 ? recordToView : null);
+
+      if (!actualRecord) {
+        showToast("Payslip record not found in database.", "error");
+        return;
+      }
+
+      const formattedPaySlip: PaySlipData = {
+        id: actualRecord.id,
+        payPeriod: actualRecord.payPeriod || payPeriodType,
+        payPeriodEnd: actualRecord.payPeriodEnd || new Date().toISOString(),
+        employeeName: `${emp.lastName}, ${emp.firstName}`,
+        dailySalary: actualRecord.dailySalary || emp.dailySalary || 0,
+        dailyAllowance: emp.dailyAllowance || emp.dailyAllowance || 0,
+        basicPay: actualRecord.basicPay ?? 0,
+        overtimePay: actualRecord.overtimePay ?? 0,
+        regularHolidayPay: actualRecord.regularHolidayPay ?? 0,
+        specialHolidayPay: actualRecord.specialHolidayPay ?? 0,
+        leavePay: actualRecord.leavePay ?? 0,
+        grossEarnings: actualRecord.grossEarnings ?? 0,
+        lateDeduction: actualRecord.lateDeduction ?? 0,
+        undertimeDeduction: actualRecord.undertimeDeduction ?? 0,
+        absentDeduction: actualRecord.absentDeduction ?? 0,
+        cashAdvanceDeduction: actualRecord.cashAdvanceDeduction ?? 0,
+        governmentContributions: actualRecord.governmentContributions ?? 0,
+        sssDeduction: actualRecord.sssDeduction ?? 0,
+        philHealthDeduction: actualRecord.philHealthDeduction ?? 0,
+        pagIbigDeduction: actualRecord.pagIbigDeduction ?? 0,
+        totalDeductions: actualRecord.totalDeductions ?? 0,
+        netReceivable: actualRecord.netReceivable ?? 0,
+      };
+
+      setPayrollData(formattedPaySlip);
+    } catch {
+      showToast("Failed to load payslip record.", "error");
+    }
   };
 
   const viewExistingPaySlip = () => {
