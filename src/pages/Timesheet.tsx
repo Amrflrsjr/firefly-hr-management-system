@@ -62,7 +62,10 @@ export default function Timesheet() {
   const [manualDate, setManualDate] = useState("");
   const [manualType, setManualType] = useState("IN");
 
-  const [filterDate, setFilterDate] = useState<string>("");
+  // Date range filters replacing single filterDate
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
   const [loadingData, setLoadingData] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
@@ -107,21 +110,21 @@ export default function Timesheet() {
   );
 
   const fetchTimesheetData = useCallback(
-    async (targetId: string, dateFilter: string, page: number) => {
+    async (targetId: string, start: string, end: string, page: number) => {
       setLoadingData(true);
       const effectiveId = role === "Admin" ? targetId : loggedInEmployeeId;
 
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("pageSize", ITEMS_PER_PAGE.toString());
+      if (start) params.append("startDate", start);
+      if (end) params.append("endDate", end);
+
       try {
-        let recordsEndpoint = `/TimeRecords?page=${page}&pageSize=${ITEMS_PER_PAGE}`;
-        if (effectiveId && effectiveId !== "all") {
-          recordsEndpoint = dateFilter
-            ? `/TimeRecords/employee/${effectiveId}?date=${dateFilter}&page=${page}&pageSize=${ITEMS_PER_PAGE}`
-            : `/TimeRecords/employee/${effectiveId}?page=${page}&pageSize=${ITEMS_PER_PAGE}`;
-        } else {
-          recordsEndpoint = dateFilter
-            ? `/TimeRecords?date=${dateFilter}&page=${page}&pageSize=${ITEMS_PER_PAGE}`
-            : `/TimeRecords?page=${page}&pageSize=${ITEMS_PER_PAGE}`;
-        }
+        const recordsEndpoint =
+          effectiveId && effectiveId !== "all"
+            ? `/TimeRecords/employee/${effectiveId}?${params.toString()}`
+            : `/TimeRecords?${params.toString()}`;
 
         const res = await api.get(recordsEndpoint);
         setRecords(res.data.items || []);
@@ -164,14 +167,20 @@ export default function Timesheet() {
           setEmployees(nonAdminEmployees);
           await fetchTimesheetData(
             selectedEmployee || "all",
-            filterDate,
+            startDate,
+            endDate,
             recordsPage,
           );
         } catch {
           if (isMounted) setLoadingData(false);
         }
       } else if (loggedInEmployeeId) {
-        await fetchTimesheetData(loggedInEmployeeId, filterDate, recordsPage);
+        await fetchTimesheetData(
+          loggedInEmployeeId,
+          startDate,
+          endDate,
+          recordsPage,
+        );
       } else {
         if (isMounted) setLoadingData(false);
       }
@@ -183,7 +192,8 @@ export default function Timesheet() {
   }, [
     role,
     selectedEmployee,
-    filterDate,
+    startDate,
+    endDate,
     loggedInEmployeeId,
     recordsPage,
     fetchTimesheetData,
@@ -201,7 +211,7 @@ export default function Timesheet() {
         try {
           await api.delete(`/TimeRecords/${id}`);
           showToast("Time record deleted successfully.");
-          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
+          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
         } catch {
           showToast("Failed to delete time record.", "error");
         } finally {
@@ -223,7 +233,7 @@ export default function Timesheet() {
         try {
           await api.delete(`/AttendanceRequests/${id}`);
           showToast("Attendance request deleted successfully.");
-          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
+          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
         } catch {
           showToast("Failed to delete request.", "error");
         } finally {
@@ -267,7 +277,7 @@ export default function Timesheet() {
       }
       setShowManualModal(false);
       setManualDate("");
-      fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
+      fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
     } catch (err: unknown) {
       const errorMsg =
         (err as { response?: { data?: string } })?.response?.data ||
@@ -293,7 +303,7 @@ export default function Timesheet() {
         try {
           await api.put(`/AttendanceRequests/${id}/approve`);
           showToast("Attendance request approved and logged!");
-          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
+          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
         } catch (err: unknown) {
           const errorMsg =
             (err as { response?: { data?: string } })?.response?.data ||
@@ -323,7 +333,7 @@ export default function Timesheet() {
         try {
           await api.put(`/AttendanceRequests/${id}/reject`);
           showToast("Attendance request declined successfully.");
-          fetchTimesheetData(selectedEmployee, filterDate, recordsPage);
+          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
         } catch {
           showToast("Failed to decline request.", "error");
         } finally {
@@ -408,23 +418,49 @@ export default function Timesheet() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => {
-                  setFilterDate(e.target.value);
-                  setRecordsPage(1);
-                }}
-                className="w-full sm:w-auto border border-slate-300 bg-white px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-(--primary) cursor-pointer"
-              />
-              {filterDate && (
+            {/* Date Span Range Filter Controls */}
+            <div className="flex items-center gap-1.5 flex-wrap sm:flex-initial">
+              <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  From
+                </span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setRecordsPage(1);
+                  }}
+                  className="text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer bg-transparent"
+                />
+              </div>
+
+              <span className="text-slate-400 text-xs font-semibold">to</span>
+
+              <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  To
+                </span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setRecordsPage(1);
+                  }}
+                  className="text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer bg-transparent"
+                />
+              </div>
+
+              {(startDate || endDate) && (
                 <button
                   onClick={() => {
-                    setFilterDate("");
+                    setStartDate("");
+                    setEndDate("");
                     setRecordsPage(1);
                   }}
                   className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl transition-colors cursor-pointer border border-slate-200 shrink-0"
+                  title="Clear Filters"
                 >
                   <X size={14} />
                 </button>
