@@ -1,208 +1,389 @@
+import { useMemo, useState } from "react";
 import {
-  Calculator,
-  ChevronRight,
-  Briefcase,
-  Clock,
-  Loader2,
+  AlertTriangle,
   CalendarDays,
-  CreditCard,
+  Calculator,
+  CheckCircle2,
   Eye,
+  PlayCircle,
+  Search,
 } from "lucide-react";
+import {
+  EMPTY_PARAMS,
+  HIGH_OVERTIME_HOURS,
+  PERIOD_LABEL,
+  estimatePayroll,
+  formatPeriodRange,
+  peso,
+  type Employee,
+  type PayPeriodType,
+  type PayrollParams,
+} from "./payrollUtils";
 
-interface Employee {
-  id: number;
-  firstName: string;
-  lastName: string;
-  dailySalary: number;
-  dailyAllowance: number;
-}
-
-interface EmployeeSummaryParams {
-  daysWorked: number;
-  overtimeHours: number;
-}
+type Filter = "all" | "pending" | "generated";
 
 interface EmployeeListGridProps {
   employees: Employee[];
-  employeeSummaries: Record<number, EmployeeSummaryParams>;
-  loadingSummaries: boolean;
-  payPeriodType: "15th" | "30th";
-  onPayPeriodChange: (type: "15th" | "30th") => void;
+  summaries: Record<number, PayrollParams>;
+  generatedIds: Set<number>;
+  loading: boolean;
+  payPeriodType: PayPeriodType;
+  onPayPeriodChange: (type: PayPeriodType) => void;
   onSelectEmployee: (id: number) => void;
-  hasExistingRecord: (empId: number) => boolean;
-  onViewPayslip: (empId: number) => void;
+  onViewPayslip: (id: number) => void;
 }
 
 export default function EmployeeListGrid({
   employees,
-  employeeSummaries,
-  loadingSummaries,
+  summaries,
+  generatedIds,
+  loading,
   payPeriodType,
   onPayPeriodChange,
   onSelectEmployee,
-  hasExistingRecord,
   onViewPayslip,
 }: EmployeeListGridProps) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+
+  const rows = useMemo(
+    () =>
+      employees.map((emp) => {
+        const params = summaries[emp.id] ?? EMPTY_PARAMS;
+        return {
+          emp,
+          params,
+          generated: generatedIds.has(emp.id),
+          estimate: estimatePayroll(emp, params),
+          noAttendance: params.daysWorked === 0,
+          highOvertime: params.overtimeHours > HIGH_OVERTIME_HOURS,
+        };
+      }),
+    [employees, summaries, generatedIds],
+  );
+
+  const total = rows.length;
+  const generatedCount = rows.filter((r) => r.generated).length;
+  const pendingCount = total - generatedCount;
+  const pct = total ? Math.round((generatedCount / total) * 100) : 0;
+  const totalNet = rows.reduce((sum, r) => sum + r.estimate.net, 0);
+  const firstPending = rows.find((r) => !r.generated);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (
+      rows
+        .filter((r) => {
+          if (filter === "pending" && r.generated) return false;
+          if (filter === "generated" && !r.generated) return false;
+          if (!q) return true;
+          return `${r.emp.lastName} ${r.emp.firstName} ${r.emp.firstName} ${r.emp.lastName}`
+            .toLowerCase()
+            .includes(q);
+        })
+        // Pending first so finished work doesn't crowd the top. Sort is stable, so names stay A–Z.
+        .sort((a, b) => Number(a.generated) - Number(b.generated))
+    );
+  }, [rows, query, filter]);
+
+  const chips: { id: Filter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: total },
+    { id: "pending", label: "Pending", count: pendingCount },
+    { id: "generated", label: "Generated", count: generatedCount },
+  ];
+
   return (
     <div className="space-y-4">
-      {/* Cutoff Selector Toggle Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <CalendarDays size={16} className="text-amber-700" />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Pay Period Cutoff Overview
-          </span>
+      {/* Period + progress */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <CalendarDays size={18} className="text-amber-700 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-slate-900">
+                {PERIOD_LABEL[payPeriodType]}
+              </p>
+              <p className="text-xs text-slate-500">
+                {formatPeriodRange(payPeriodType)}
+              </p>
+            </div>
+          </div>
+
+          <div
+            role="tablist"
+            aria-label="Pay period"
+            className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 w-full lg:w-auto"
+          >
+            {(["15th", "30th"] as const).map((type) => (
+              <button
+                key={type}
+                role="tab"
+                aria-selected={payPeriodType === type}
+                onClick={() => onPayPeriodChange(type)}
+                className={`flex-1 lg:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-amber-600 ${
+                  payPeriodType === type
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <span className="block">{PERIOD_LABEL[type]}</span>
+                <span className="block font-medium text-[11px] text-slate-500">
+                  {formatPeriodRange(type)}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Segmented Pill Toggle */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0 w-full sm:w-auto">
-          <button
-            onClick={() => onPayPeriodChange("15th")}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              payPeriodType === "15th"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            15th Pay Period (29th - 13th)
-          </button>
-          <button
-            onClick={() => onPayPeriodChange("30th")}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              payPeriodType === "30th"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            End of Month (14th - 28th)
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex-1">
+            <div className="flex items-baseline justify-between text-xs mb-1.5">
+              <span className="font-semibold text-slate-800">
+                {loading
+                  ? "Loading…"
+                  : `${generatedCount} of ${total} payslips generated`}
+              </span>
+              <span className="font-mono text-slate-500">{pct}%</span>
+            </div>
+            <div
+              className="h-2 bg-slate-100 rounded-full overflow-hidden"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Payslips generated"
+            >
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-[width] duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="sm:text-right shrink-0">
+            <p className="text-xs text-slate-500">Estimated total net payout</p>
+            <p className="font-mono text-base font-bold text-slate-900">
+              {loading ? "—" : peso(totalNet)}
+            </p>
+          </div>
+
+          {!loading &&
+            total > 0 &&
+            (firstPending ? (
+              <button
+                onClick={() => onSelectEmployee(firstPending.emp.id)}
+                className="shrink-0 inline-flex items-center justify-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2.5 rounded-lg text-xs font-bold cursor-pointer shadow-xs"
+              >
+                <PlayCircle size={15} />
+                Start next pending
+              </button>
+            ) : (
+              <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                <CheckCircle2 size={16} />
+                All payslips generated
+              </span>
+            ))}
         </div>
       </div>
 
-      {/* Employees Summary Grid Cards */}
-      {employees.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 text-xs shadow-sm">
-          No employees available.
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+        <div className="flex gap-1.5 flex-wrap">
+          {chips.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setFilter(c.id)}
+              aria-pressed={filter === c.id}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
+                filter === c.id
+                  ? "bg-slate-900 border-slate-900 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {c.label} <span className="font-mono opacity-70">{c.count}</span>
+            </button>
+          ))}
         </div>
-      ) : loadingSummaries ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 space-y-2 shadow-sm">
-          <Loader2 size={24} className="animate-spin text-amber-600 mx-auto" />
-          <p className="text-xs font-semibold text-slate-500">
-            Loading employee period summaries...
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {employees.map((emp) => {
-            const summary = employeeSummaries[emp.id] || {
-              daysWorked: 0,
-              overtimeHours: 0,
-            };
-            const alreadyGenerated = hasExistingRecord(emp.id);
+        <label className="relative sm:w-64">
+          <span className="sr-only">Search employees</span>
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search employee…"
+            className="w-full h-9 pl-9 pr-3 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15"
+          />
+        </label>
+      </div>
 
-            return (
-              <div
-                key={emp.id}
-                onClick={() => {
-                  if (alreadyGenerated) {
-                    onViewPayslip(emp.id);
-                  } else {
-                    onSelectEmployee(emp.id);
-                  }
-                }}
-                className={`bg-white border rounded-xl p-5 transition-all cursor-pointer group flex flex-col justify-between space-y-4 shadow-xs ${
-                  alreadyGenerated
-                    ? "border-emerald-300 bg-emerald-50/20 hover:border-emerald-400 shadow-xs"
-                    : "border-slate-200 hover:border-amber-400 hover:shadow-md"
-                }`}
-              >
-                <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-slate-950 transition-colors">
-                        {emp.lastName}, {emp.firstName}
-                      </h3>
-                      {alreadyGenerated && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                          Generated
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 space-y-0.5">
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                        <Briefcase size={12} className="text-slate-400" /> Daily
-                        Rate:{" "}
-                        <span className="font-mono font-semibold text-slate-700">
-                          ₱{emp.dailySalary?.toLocaleString()}
-                        </span>
-                      </p>
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                        <CreditCard size={12} className="text-slate-400" />{" "}
-                        Daily Allowance:{" "}
-                        <span className="font-mono font-semibold text-emerald-600">
-                          ₱{emp.dailyAllowance?.toLocaleString()}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
-                      alreadyGenerated
-                        ? "bg-emerald-100 text-emerald-800 group-hover:bg-emerald-200"
-                        : "bg-amber-50 text-amber-800 group-hover:bg-amber-100"
-                    }`}
-                  >
-                    <ChevronRight size={16} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-100 p-3 rounded-lg">
-                  <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Days Worked
-                    </span>
-                    <span className="font-mono font-bold text-slate-800 text-sm mt-0.5 block">
-                      {summary.daysWorked}{" "}
-                      {summary.daysWorked === 1 ? "day" : "days"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Overtime
-                    </span>
-                    <span className="font-mono font-bold text-amber-900 text-sm mt-0.5 block items-center gap-1">
-                      <Clock size={12} className="text-amber-600 shrink-0" />
-                      {summary.overtimeHours} hrs
-                    </span>
-                  </div>
-                </div>
-
-                {alreadyGenerated ? (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewPayslip(emp.id);
-                    }}
-                    className="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                  >
-                    <Eye size={14} /> View Payslip
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectEmployee(emp.id);
-                    }}
-                    className="w-full bg-slate-900 group-hover:bg-(--primary) group-hover:text-slate-950 text-white py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                  >
-                    <Calculator size={14} /> Make Payroll
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Table */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+        <table className="w-full min-w-170 text-left">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50/70 text-xs text-slate-500">
+              <th scope="col" className="px-4 py-3 font-semibold">
+                Employee
+              </th>
+              <th scope="col" className="px-4 py-3 font-semibold text-right">
+                Days
+              </th>
+              <th scope="col" className="px-4 py-3 font-semibold text-right">
+                Overtime
+              </th>
+              <th scope="col" className="px-4 py-3 font-semibold text-right">
+                Est. net pay
+              </th>
+              <th scope="col" className="px-4 py-3 font-semibold">
+                Status
+              </th>
+              <th scope="col" className="px-4 py-3">
+                <span className="sr-only">Action</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} aria-hidden>
+                  {Array.from({ length: 6 }).map((__, j) => (
+                    <td key={j} className="px-4 py-4">
+                      <div className="h-4 rounded bg-slate-100 animate-pulse" />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : visible.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-4 py-12 text-center text-xs text-slate-500"
+                >
+                  {total === 0 ? (
+                    "No employees available."
+                  ) : (
+                    <>
+                      No employees match your filters.{" "}
+                      <button
+                        onClick={() => {
+                          setQuery("");
+                          setFilter("all");
+                        }}
+                        className="font-semibold text-amber-800 underline cursor-pointer"
+                      >
+                        Clear filters
+                      </button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ) : (
+              visible.map(
+                ({
+                  emp,
+                  params,
+                  generated,
+                  estimate,
+                  noAttendance,
+                  highOvertime,
+                }) => {
+                  const open = () =>
+                    generated
+                      ? onViewPayslip(emp.id)
+                      : onSelectEmployee(emp.id);
+                  return (
+                    <tr
+                      key={emp.id}
+                      onClick={open}
+                      className={`cursor-pointer transition-colors ${
+                        generated
+                          ? "bg-emerald-50/30 hover:bg-emerald-50/60"
+                          : "hover:bg-amber-50/40"
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {emp.lastName}, {emp.firstName}
+                        </p>
+                        <p className="text-xs text-slate-500 font-mono">
+                          {peso(emp.dailySalary || 0)}/day
+                          {emp.dailyAllowance
+                            ? ` + ${peso(emp.dailyAllowance)} allowance`
+                            : ""}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-sm text-slate-800">
+                        {params.daysWorked}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-sm text-slate-800">
+                        {params.overtimeHours} hrs
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-slate-900">
+                        {peso(estimate.net)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {generated ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 size={12} /> Generated
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                                Pending
+                              </span>
+                              {noAttendance && (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                                  <AlertTriangle size={12} /> No attendance
+                                </span>
+                              )}
+                              {highOvertime && (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                                  <AlertTriangle size={12} /> High overtime
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            open();
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-amber-600 ${
+                            generated
+                              ? "bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                              : "bg-slate-900 text-white hover:bg-slate-800"
+                          }`}
+                        >
+                          {generated ? (
+                            <>
+                              <Eye size={13} /> View payslip
+                            </>
+                          ) : (
+                            <>
+                              <Calculator size={13} /> Make payroll
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                },
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-slate-400">
+        Net pay is an estimate from attendance and profile rates. Final figures
+        are calculated when the payslip is generated.
+      </p>
     </div>
   );
 }
