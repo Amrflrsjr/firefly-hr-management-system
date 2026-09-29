@@ -591,6 +591,7 @@ export default function EmployeeFormFields<T extends Partial<Employee>>({
             <option value="Per Pay Period">
               Per Pay Period (Split per cutoff)
             </option>
+            <option value="Every 15th Pay Period">Every 15th Pay Period</option>
             <option value="Every End of Month">Every End of Month</option>
           </select>
         </div>
