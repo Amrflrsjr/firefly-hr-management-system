@@ -134,14 +134,18 @@ export const peso = (n: number) =>
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function estimatePayroll(emp: Employee, p: PayrollParams) {
+export function estimatePayroll(
+  emp: Employee,
+  p: PayrollParams,
+  payPeriodType: PayPeriodType = "15th",
+) {
   const dailyAllowance = emp.dailyAllowance || 0;
   const actualDailyRate = (emp.dailySalary || 0) + dailyAllowance; // D5 equivalent
 
   const basicPay = actualDailyRate * p.daysWorked;
   const overtimePay = (p.overtimeHours / 8.0) * actualDailyRate * 1.25; // 125% multiplier
   const regularHolidayPay =
-    (p.regularHolidayHours / 8.0) * actualDailyRate * 1.0;
+    (p.regularHolidayHours / 8.0) * actualDailyRate * 2.0;
   const specialHolidayPay =
     (p.specialNonWorkingHours / 8.0) * actualDailyRate * 1.3;
   const leavePay = (p.approvedLeaveHours / 8.0) * actualDailyRate;
@@ -158,19 +162,35 @@ export function estimatePayroll(emp: Employee, p: PayrollParams) {
   let pagIbig = 0;
 
   if (emp.hasGovernmentDeductions) {
-    const isPerPeriod = emp.deductionType === "Per Pay Period";
     const monthlySss = 720.0;
     const monthlyPhilHealth = 360.0;
     const monthlyPagIbig = 100.0;
 
-    if (isPerPeriod) {
+    if (emp.deductionType === "Per Pay Period") {
       sss = monthlySss / 2.0;
       philHealth = monthlyPhilHealth / 2.0;
       pagIbig = monthlyPagIbig / 2.0;
+    } else if (emp.deductionType === "Every 15th Pay Period") {
+      if (payPeriodType === "15th") {
+        sss = monthlySss;
+        philHealth = monthlyPhilHealth;
+        pagIbig = monthlyPagIbig;
+      } else {
+        sss = 0;
+        philHealth = 0;
+        pagIbig = 0;
+      }
     } else {
-      sss = monthlySss;
-      philHealth = monthlyPhilHealth;
-      pagIbig = monthlyPagIbig;
+      // Monthly / End of Month
+      if (payPeriodType !== "15th") {
+        sss = monthlySss;
+        philHealth = monthlyPhilHealth;
+        pagIbig = monthlyPagIbig;
+      } else {
+        sss = 0;
+        philHealth = 0;
+        pagIbig = 0;
+      }
     }
   }
 

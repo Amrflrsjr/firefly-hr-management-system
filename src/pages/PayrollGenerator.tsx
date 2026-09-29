@@ -329,8 +329,11 @@ export default function PayrollGenerator() {
   }, [employees, generatedIds, selectedEmployee]);
 
   const estimate = useMemo(
-    () => (currentEmployee ? estimatePayroll(currentEmployee, params) : null),
-    [currentEmployee, params],
+    () =>
+      currentEmployee
+        ? estimatePayroll(currentEmployee, params, payPeriodType)
+        : null,
+    [currentEmployee, params, payPeriodType],
   );
 
   const allKeys = [...EARNING_ITEMS, ...DEDUCTION_ITEMS].map((i) => i.key);

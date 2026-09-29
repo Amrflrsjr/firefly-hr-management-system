@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, Download, Loader2, Coins, Receipt } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { X, Download, Loader2, TriangleAlert } from "lucide-react";
 import api from "../services/api";
 import logoNoBg from "../assets/Firefly Logo - No BG.png";
 
@@ -35,12 +35,14 @@ interface PaySlipModalProps {
   onShowToast?: (text: string, type?: "success" | "error") => void;
 }
 
-const formatCurrency = (val?: number) => {
+/** Formats as ₱1,234.56 — negatives render as -₱1,234.56 (not ₱-1,234.56). */
+const peso = (val?: number) => {
   const amount = val ?? 0;
-  return amount.toLocaleString("en-US", {
+  const formatted = Math.abs(amount).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+  return `${amount < 0 ? "-" : ""}₱${formatted}`;
 };
 
 const getPayPeriodRange = (payPeriod: string, payPeriodEndStr: string) => {
@@ -75,6 +77,87 @@ const getPayPeriodRange = (payPeriod: string, payPeriodEndStr: string) => {
   return `${format(startDate)} – ${format(finalEndDate)}`;
 };
 
+/* ─────────────────────────── Small building blocks ─────────────────────────── */
+
+function LineItem({
+  label,
+  hint,
+  amount,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  amount: number;
+  children?: ReactNode;
+}) {
+  const isZero = !amount;
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-800">{label}</p>
+          {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
+        </div>
+        <p
+          className={`shrink-0 text-sm font-semibold tabular-nums ${
+            isZero ? "text-slate-400" : "text-slate-900"
+          }`}
+        >
+          {peso(amount)}
+        </p>
+      </div>
+      {children}
+    </li>
+  );
+}
+
+function BreakdownRow({ label, amount }: { label: string; amount?: number }) {
+  return (
+    <div className="flex items-center justify-between text-xs text-slate-500">
+      <span>{label}</span>
+      <span className="tabular-nums">{peso(amount)}</span>
+    </div>
+  );
+}
+
+function SectionCard({
+  title,
+  accent,
+  totalLabel,
+  totalValue,
+  totalClass,
+  children,
+}: {
+  title: string;
+  accent: string;
+  totalLabel: string;
+  totalValue: string;
+  totalClass: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <header className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3 sm:px-5">
+        <span className={`h-4 w-1 rounded-full ${accent}`} aria-hidden />
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      </header>
+      <ul className="flex-1 divide-y divide-slate-100 px-4 py-4 sm:px-5">
+        {children}
+      </ul>
+      <footer className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+        <span className="text-sm font-semibold text-slate-700">
+          {totalLabel}
+        </span>
+        <span className={`text-base font-bold tabular-nums ${totalClass}`}>
+          {totalValue}
+        </span>
+      </footer>
+    </section>
+  );
+}
+
+/* ─────────────────────────────── Main component ────────────────────────────── */
+
 export default function PaySlipModal({
   isOpen,
   paySlip,
@@ -82,6 +165,19 @@ export default function PaySlipModal({
   onShowToast,
 }: PaySlipModalProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Close on Escape + lock background scroll while open
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen || !paySlip) return null;
 
@@ -91,20 +187,9 @@ export default function PaySlipModal({
   const combinedDailyRate = storedDailySalary + storedDailyAllowance;
 
   const dateRange = getPayPeriodRange(paySlip.payPeriod, paySlip.payPeriodEnd);
-
-  // Running Totals for Earnings
-  const basicRunning = paySlip.basicPay;
-  const otRunning = basicRunning + paySlip.overtimePay;
-  const regHolRunning = otRunning + paySlip.regularHolidayPay;
-  const specHolRunning = regHolRunning + paySlip.specialHolidayPay;
-  const grossTotal = specHolRunning + paySlip.leavePay;
-
-  // Running Totals for Deductions
-  const lateUndertimeRunning =
+  const lateUndertime =
     (paySlip.lateDeduction ?? 0) + (paySlip.undertimeDeduction ?? 0);
-  const absentRunning = lateUndertimeRunning + paySlip.absentDeduction;
-  const caRunning = absentRunning + paySlip.cashAdvanceDeduction;
-  const totalDeduct = caRunning + paySlip.governmentContributions;
+  const isNegativeNet = paySlip.netReceivable < 0;
 
   const handleDownloadPdf = async () => {
     if (!paySlip) return;
@@ -119,14 +204,10 @@ export default function PaySlipModal({
       if (isRealDbId) {
         endpoint = `/Payroll/download-payslip/${paySlip.id}`;
       } else {
-        // Fallback to employee download endpoint if we don't have a direct DB payslip ID yet
-        // Extract employee ID if stored, or fallback to the download-payslip route with query parameters
         endpoint = `/Payroll/download-payslip/999?payPeriod=${encodeURIComponent(paySlip.payPeriod)}`;
       }
 
-      const response = await api.get(endpoint, {
-        responseType: "blob",
-      });
+      const response = await api.get(endpoint, { responseType: "blob" });
 
       const blob = new Blob([response.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
@@ -158,289 +239,196 @@ export default function PaySlipModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white w-full max-w-4xl rounded-xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Modal Header Bar */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-xs sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payslip-title"
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[92dvh] sm:max-w-3xl sm:rounded-2xl"
+      >
+        {/* ── Header ── */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
             <img
               src={logoNoBg}
-              alt="Firefly Crafts PH Logo"
-              className="h-8 w-auto object-contain"
+              alt="Firefly Crafts PH logo"
+              className="h-9 w-auto shrink-0 object-contain"
             />
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Official Pay Slip Preview
+            <div className="min-w-0">
+              <h2
+                id="payslip-title"
+                className="truncate text-base font-semibold text-slate-900"
+              >
+                Pay slip
               </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {paySlip.payPeriod} &bull; {dateRange}
+              <p className="truncate text-xs text-slate-500">
+                Firefly Crafts PH · {paySlip.payPeriod}
               </p>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-colors cursor-pointer"
-            title="Close Preview"
+            aria-label="Close pay slip"
+            className="shrink-0 cursor-pointer rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        {/* Scrollable Modal Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-xs space-y-5">
-            {/* Company Branding & Employee Details Card */}
-            <div className="bg-slate-50/70 border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="flex items-center gap-3">
-                <img
-                  src={logoNoBg}
-                  alt="Logo"
-                  className="h-9 w-auto object-contain"
+        {/* ── Scrollable body ── */}
+        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 sm:space-y-5 sm:p-6">
+          {/* Employee details */}
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3 sm:p-5">
+            <div className="col-span-2 sm:col-span-1">
+              <dt className="text-xs text-slate-500">Employee</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-900">
+                {paySlip.employeeName || "N/A"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Pay period</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-900">
+                {dateRange}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Daily rate</dt>
+              <dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">
+                {peso(combinedDailyRate)}
+              </dd>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                {peso(storedDailySalary)} base + {peso(storedDailyAllowance)}{" "}
+                allowance
+              </p>
+            </div>
+          </dl>
+
+          {/* Net pay — the one thing people look for first */}
+          <div
+            className={`rounded-xl p-5 sm:p-6 ${
+              isNegativeNet
+                ? "bg-rose-950 text-white"
+                : "bg-slate-900 text-white"
+            }`}
+          >
+            <p className="text-sm text-slate-300">Net pay</p>
+            <p
+              className={`mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl ${
+                isNegativeNet ? "text-rose-300" : "text-amber-300"
+              }`}
+            >
+              {peso(paySlip.netReceivable)}
+            </p>
+            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/10 pt-3 text-xs text-slate-300 tabular-nums">
+              <span>Earnings {peso(paySlip.grossEarnings)}</span>
+              <span aria-hidden>−</span>
+              <span>Deductions {peso(paySlip.totalDeductions)}</span>
+            </p>
+            {isNegativeNet && (
+              <p className="mt-3 flex items-start gap-2 rounded-lg bg-white/10 p-3 text-xs leading-relaxed text-rose-100">
+                <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+                Deductions are higher than earnings for this period. Check that
+                attendance records have been logged.
+              </p>
+            )}
+          </div>
+
+          {/* Earnings & deductions */}
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
+            <SectionCard
+              title="Earnings"
+              accent="bg-emerald-500"
+              totalLabel="Total earnings"
+              totalValue={peso(paySlip.grossEarnings)}
+              totalClass="text-emerald-700"
+            >
+              <LineItem label="Basic pay" amount={paySlip.basicPay} />
+              <LineItem
+                label="Overtime pay"
+                hint="Paid at 125%"
+                amount={paySlip.overtimePay}
+              />
+              <LineItem
+                label="Regular holiday pay"
+                hint="Paid at 200%"
+                amount={paySlip.regularHolidayPay}
+              />
+              <LineItem
+                label="Special holiday pay"
+                hint="Paid at 130%"
+                amount={paySlip.specialHolidayPay}
+              />
+              {paySlip.leavePay > 0 && (
+                <LineItem
+                  label="Approved leave pay"
+                  amount={paySlip.leavePay}
                 />
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Firefly Crafts PH
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    {paySlip.payPeriod} ({dateRange})
-                  </p>
-                </div>
-              </div>
-              <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Employee Name
-                </span>
-                <span className="text-xs font-bold text-slate-900 block mt-0.5">
-                  {paySlip.employeeName || "N/A"}
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium block mt-1">
-                  Daily Rate:{" "}
-                  <strong className="font-mono text-slate-700">
-                    ₱{formatCurrency(combinedDailyRate)}
-                  </strong>
-                </span>
-              </div>
-            </div>
+              )}
+            </SectionCard>
 
-            {/* SIDE-BY-SIDE EARNINGS & DEDUCTIONS TABLES */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {/* Earnings Section */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                  <Coins size={14} className="text-emerald-600" />
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    Earnings
-                  </h4>
+            <SectionCard
+              title="Deductions"
+              accent="bg-rose-500"
+              totalLabel="Total deductions"
+              totalValue={
+                paySlip.totalDeductions > 0
+                  ? `-${peso(paySlip.totalDeductions)}`
+                  : peso(0)
+              }
+              totalClass="text-rose-600"
+            >
+              <LineItem label="Late / undertime" amount={lateUndertime} />
+              <LineItem label="Absences" amount={paySlip.absentDeduction} />
+              <LineItem
+                label="Cash advance"
+                amount={paySlip.cashAdvanceDeduction}
+              />
+              <LineItem
+                label="Government contributions"
+                amount={paySlip.governmentContributions}
+              >
+                <div className="mt-2 space-y-1 rounded-lg bg-slate-50 px-3 py-2">
+                  <BreakdownRow label="SSS" amount={paySlip.sssDeduction} />
+                  <BreakdownRow
+                    label="PhilHealth"
+                    amount={paySlip.philHealthDeduction}
+                  />
+                  <BreakdownRow
+                    label="Pag-IBIG"
+                    amount={paySlip.pagIbigDeduction}
+                  />
                 </div>
-                <div className="p-4 overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="text-slate-400 font-bold border-b border-slate-200 pb-2 text-left text-[10px] uppercase tracking-wider">
-                        <th className="pb-2">Description</th>
-                        <th className="pb-2 text-right">Amount</th>
-                        <th className="pb-2 text-right text-slate-400">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                      <tr>
-                        <td className="py-2.5">Basic Pay</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(paySlip.basicPay)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(basicRunning)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5">Overtime Pay (+25%)</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(paySlip.overtimePay)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(otRunning)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5">Regular Holiday (200%)</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(paySlip.regularHolidayPay)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(regHolRunning)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5">Special Holiday (130%)</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(paySlip.specialHolidayPay)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(specHolRunning)}
-                        </td>
-                      </tr>
-                      {paySlip.leavePay > 0 && (
-                        <tr>
-                          <td className="py-2.5">Approved Leave Pay</td>
-                          <td className="py-2.5 text-right font-mono font-semibold">
-                            ₱{formatCurrency(paySlip.leavePay)}
-                          </td>
-                          <td className="py-2.5 text-right font-mono text-slate-400">
-                            ₱{formatCurrency(grossTotal)}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-slate-200 text-slate-900 font-bold bg-slate-50/50">
-                        <td className="py-3 px-3 text-xs uppercase tracking-wider">
-                          Gross Earnings
-                        </td>
-                        <td
-                          colSpan={2}
-                          className="py-3 px-3 text-right font-mono text-amber-800 text-sm font-black"
-                        >
-                          ₱{formatCurrency(paySlip.grossEarnings)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              {/* Deductions Section */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                  <Receipt size={14} className="text-rose-600" />
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    Deductions
-                  </h4>
-                </div>
-                <div className="p-4 overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="text-slate-400 font-bold border-b border-slate-200 pb-2 text-left text-[10px] uppercase tracking-wider">
-                        <th className="pb-2">Description</th>
-                        <th className="pb-2 text-right">Amount</th>
-                        <th className="pb-2 text-right text-slate-400">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                      <tr>
-                        <td className="py-2.5">Late / Undertime</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(lateUndertimeRunning)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(lateUndertimeRunning)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5">Absent Deduction</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(paySlip.absentDeduction)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(absentRunning)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5">Cash Advance</td>
-                        <td className="py-2.5 text-right font-mono font-semibold">
-                          ₱{formatCurrency(paySlip.cashAdvanceDeduction)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400">
-                          ₱{formatCurrency(caRunning)}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-2.5 align-top">
-                          Government Benefits
-                          <div className="pl-2 pt-1.5 space-y-1 text-[11px] text-slate-500 font-normal">
-                            <div>
-                              &bull; SSS: ₱
-                              {formatCurrency(paySlip.sssDeduction)}
-                            </div>
-                            <div>
-                              &bull; PhilHealth: ₱
-                              {formatCurrency(paySlip.philHealthDeduction)}
-                            </div>
-                            <div>
-                              &bull; Pag-IBIG: ₱
-                              {formatCurrency(paySlip.pagIbigDeduction)}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-right font-mono font-semibold align-top">
-                          ₱{formatCurrency(paySlip.governmentContributions)}
-                        </td>
-                        <td className="py-2.5 text-right font-mono text-slate-400 align-top">
-                          ₱{formatCurrency(totalDeduct)}
-                        </td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-slate-200 text-slate-900 font-bold bg-slate-50/50">
-                        <td className="py-3 px-3 text-xs uppercase tracking-wider">
-                          Total Deductions
-                        </td>
-                        <td
-                          colSpan={2}
-                          className="py-3 px-3 text-right font-mono text-rose-600 text-sm font-black"
-                        >
-                          -₱{formatCurrency(paySlip.totalDeductions)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {/* NET RECEIVABLE BANNER */}
-            <div className="border border-amber-200 rounded-xl p-4 bg-amber-50/60 flex justify-between items-center">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-900/70 block">
-                  Final Net Receivable
-                </span>
-                <span className="text-xs text-slate-500 mt-0.5 block">
-                  Gross earnings less all deductions.
-                </span>
-              </div>
-              <span className="font-mono text-xl sm:text-2xl font-black text-slate-950">
-                ₱{formatCurrency(paySlip.netReceivable)}
-              </span>
-            </div>
+              </LineItem>
+            </SectionCard>
           </div>
         </div>
 
-        {/* Modal Action Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-3 shrink-0">
+        {/* ── Action footer ── */}
+        <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-slate-200 bg-white px-4 pt-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:flex-row sm:px-6 sm:py-4">
+          <button
+            onClick={onClose}
+            className="cursor-pointer rounded-lg border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:w-28"
+          >
+            Close
+          </button>
           <button
             onClick={handleDownloadPdf}
             disabled={isDownloading}
-            className="flex-1 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 py-3 rounded-lg font-bold text-xs shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-(--primary) py-3 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-(--primary-hover) active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isDownloading ? (
               <>
-                <Loader2 size={15} className="animate-spin" /> Downloading
-                PDF...
+                <Loader2 size={16} className="animate-spin" /> Preparing PDF...
               </>
             ) : (
               <>
-                <Download size={15} /> Download Payslip PDF
+                <Download size={16} /> Download PDF
               </>
             )}
-          </button>
-          <button
-            onClick={onClose}
-            className="sm:w-28 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-3 rounded-lg font-bold text-xs transition-colors cursor-pointer"
-          >
-            Close
           </button>
         </div>
       </div>
