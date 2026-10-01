@@ -7,7 +7,6 @@ export interface ParameterItem {
   key: PayrollParamKey;
   step: string;
   unit: string;
-  /** Upper bound for validation. Adjust to your company policy. */
   max: number;
 }
 
@@ -17,16 +16,17 @@ interface ParameterSectionProps {
   type: "earnings" | "deductions";
   items: ParameterItem[];
   params: PayrollParams;
-  /** Values last fetched from the system (attendance, etc.) */
   synced: PayrollParams;
   overridden: Record<string, boolean>;
   loading: boolean;
-  /** True when locked (already generated) or computing */
   disabled: boolean;
   onChange: (key: PayrollParamKey, value: number) => void;
   onOverride: (key: PayrollParamKey) => void;
   onReset: (key: PayrollParamKey) => void;
   onResetAll: (keys: PayrollParamKey[]) => void;
+  fieldHelperText?: Record<string, string>;
+  /** Dynamic maximum limits per field key (e.g., cash advance total balance) */
+  fieldMaxLimits?: Record<string, number>;
 }
 
 export default function ParameterSection({
@@ -43,6 +43,8 @@ export default function ParameterSection({
   onOverride,
   onReset,
   onResetAll,
+  fieldHelperText,
+  fieldMaxLimits,
 }: ParameterSectionProps) {
   const isEarnings = type === "earnings";
   const modifiedKeys = items
@@ -76,20 +78,25 @@ export default function ParameterSection({
       </div>
 
       <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
-        {items.map((item) => (
-          <ParameterField
-            key={item.key}
-            item={item}
-            value={params[item.key]}
-            syncedValue={synced[item.key]}
-            isOverridden={Boolean(overridden[item.key])}
-            loading={loading}
-            disabled={disabled}
-            onChange={(v) => onChange(item.key, v)}
-            onOverride={() => onOverride(item.key)}
-            onReset={() => onReset(item.key)}
-          />
-        ))}
+        {items.map((item) => {
+          const customMax = fieldMaxLimits?.[item.key];
+          const effectiveMax = customMax !== undefined ? customMax : item.max;
+          return (
+            <ParameterField
+              key={item.key}
+              item={{ ...item, max: effectiveMax }}
+              value={params[item.key]}
+              syncedValue={synced[item.key]}
+              isOverridden={Boolean(overridden[item.key])}
+              loading={loading}
+              disabled={disabled}
+              helperText={fieldHelperText?.[item.key]}
+              onChange={(v) => onChange(item.key, v)}
+              onOverride={() => onOverride(item.key)}
+              onReset={() => onReset(item.key)}
+            />
+          );
+        })}
       </div>
     </section>
   );
@@ -104,6 +111,7 @@ interface ParameterFieldProps {
   isOverridden: boolean;
   loading: boolean;
   disabled: boolean;
+  helperText?: string;
   onChange: (v: number) => void;
   onOverride: () => void;
   onReset: () => void;
@@ -116,6 +124,7 @@ function ParameterField({
   isOverridden,
   loading,
   disabled,
+  helperText,
   onChange,
   onOverride,
   onReset,
@@ -123,11 +132,9 @@ function ParameterField({
   const id = useId();
   const errorId = `${id}-error`;
 
-  // Keep the raw text locally so clearing the box or typing "0." doesn't snap to 0.
   const [text, setText] = useState(String(value));
   const [focused, setFocused] = useState(false);
 
-  // Sync state during render if value changed externally and the field is not focused (avoids effect setState warning)
   const [prevValue, setPrevValue] = useState(value);
   if (value !== prevValue && !focused) {
     setPrevValue(value);
@@ -144,7 +151,7 @@ function ParameterField({
         : parsed < 0
           ? "Cannot be negative"
           : parsed > item.max
-            ? `Maximum is ${item.max}`
+            ? `Cannot exceed total balance (${item.max})`
             : null;
 
   const isModified = isOverridden && value !== syncedValue;
@@ -201,7 +208,7 @@ function ParameterField({
             const n = raw.trim() === "" ? NaN : Number(raw);
             if (!Number.isNaN(n) && n >= 0 && n <= item.max) onChange(n);
           }}
-          className={`w-full h-10 border pl-3 pr-14 rounded-lg font-mono text-sm font-semibold transition-colors[cite: 6]${
+          className={`w-full h-10 border pl-3 pr-14 rounded-lg font-mono text-sm font-semibold transition-colors ${
             loading ? "animate-pulse" : ""
           } ${
             editable && error
@@ -229,6 +236,8 @@ function ParameterField({
               · system value {syncedValue} {item.unit}
             </span>
           </p>
+        ) : helperText ? (
+          <p className="text-amber-800 font-medium">{helperText}</p>
         ) : !isOverridden ? (
           <p className="text-slate-400">From system records</p>
         ) : null}

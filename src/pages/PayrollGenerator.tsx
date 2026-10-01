@@ -40,7 +40,15 @@ interface PayrollResult extends PayrollAmounts {
   employeeName: string;
 }
 
-// Max values are sanity limits for typos, not business rules. Adjust to your policy.
+interface CashAdvanceRecord {
+  id: number;
+  employeeId: number;
+  remainingBalance?: number;
+  cashAdvanceAmount?: number;
+  status: string;
+  date: string;
+}
+
 const EARNING_ITEMS: ParameterItem[] = [
   { label: "Days worked", key: "daysWorked", step: "1", unit: "days", max: 16 },
   {
@@ -156,6 +164,9 @@ export default function PayrollGenerator() {
     type: "success" | "error";
   } | null>(null);
 
+  // Store all active cash advance records for the selected employee
+  const [activeAdvances, setActiveAdvances] = useState<CashAdvanceRecord[]>([]);
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
@@ -178,7 +189,6 @@ export default function PayrollGenerator() {
 
   /* ----------------------------- Data loading ----------------------------- */
 
-  // Lightweight refresh: only "who's generated", no per-employee calls.
   const refreshGenerated = useCallback(async (period: PayPeriodType) => {
     try {
       const res = await api.get("/Payroll/status-summary", {
@@ -186,11 +196,10 @@ export default function PayrollGenerator() {
       });
       setGeneratedIds(new Set<number>(res.data || []));
     } catch {
-      /* keep the current state */
+      /* keep current state */
     }
   }, []);
 
-  // Full load: employees + who's generated + per-employee attendance summary.
   const loadAllData = useCallback(
     async (period: PayPeriodType) => {
       const requestId = ++listRequest.current;
@@ -255,16 +264,34 @@ export default function PayrollGenerator() {
       const requestId = ++detailRequest.current;
       setLoadingParams(true);
       try {
-        const [paramsRes, historyRes] = await Promise.all([
+        const [paramsRes, historyRes, cashAdvancesRes] = await Promise.all([
           api.get(`/Payroll/calculate-params/${empId}`, {
             params: { payPeriod: period },
           }),
           api
             .get(`/Payroll/history/${empId}`)
             .catch(() => ({ data: { items: [] } })),
+          api.get("/CashAdvances").catch(() => ({ data: [] })),
         ]);
         if (requestId !== detailRequest.current) return;
+
+        // Filter all active cash advances for this employee and sort oldest first (FIFO)
+        const allAdvances: CashAdvanceRecord[] = cashAdvancesRes.data || [];
+        const employeeActive = allAdvances
+          .filter(
+            (ca) =>
+              ca.employeeId === empId && ca.status?.toLowerCase() === "active",
+          )
+          .sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+          );
+
+        setActiveAdvances(employeeActive);
+
         const fresh = normalizeParams(paramsRes.data);
+        // Explicitly start at 0 so admin inputs the deduction manually
+        fresh.cashAdvanceDeduction = 0;
+
         setParams(fresh);
         setSyncedParams(fresh);
         setHistoryRecords(historyRes.data?.items || []);
@@ -288,6 +315,7 @@ export default function PayrollGenerator() {
     setHistoryRecords([]);
     setParams(cached);
     setSyncedParams(cached);
+    setActiveAdvances([]);
     fetchEmployeeDetails(id, payPeriodType);
   };
 
@@ -336,6 +364,60 @@ export default function PayrollGenerator() {
     [currentEmployee, params, payPeriodType],
   );
 
+  // Total combined balance across all active cash advances
+  const totalEmployeeBalance = useMemo(() => {
+    return activeAdvances.reduce((sum, ca) => {
+      const bal = ca.remainingBalance ?? ca.cashAdvanceAmount ?? 0;
+      return sum + Number(bal);
+    }, 0);
+  }, [activeAdvances]);
+
+  // Live remaining balance calculation as the user types/deducts numbers
+  const liveRemainingBalance = useMemo(() => {
+    const deduction = Number(params.cashAdvanceDeduction) || 0;
+    return Math.max(0, totalEmployeeBalance - deduction);
+  }, [totalEmployeeBalance, params.cashAdvanceDeduction]);
+
+  // FIFO distribution breakdown mapping implemented cleanly without unused variables
+  const advanceCalculations = useMemo(() => {
+    const totalDeduction = Number(params.cashAdvanceDeduction) || 0;
+
+    const accumulated = activeAdvances.reduce<
+      {
+        id: number;
+        initialBalance: number;
+        appliedDeduction: number;
+        remainingBalance: number;
+        remainingDeduction: number;
+      }[]
+    >((acc, ca) => {
+      const prevRemaining =
+        acc.length > 0
+          ? acc[acc.length - 1].remainingDeduction
+          : totalDeduction;
+      const caBal = Number(ca.remainingBalance ?? ca.cashAdvanceAmount ?? 0);
+      const applied = Math.min(Math.max(0, prevRemaining), caBal);
+      const leftover = Math.max(0, caBal - applied);
+      const nextRemaining = Math.max(0, prevRemaining - applied);
+
+      acc.push({
+        id: ca.id,
+        initialBalance: caBal,
+        appliedDeduction: applied,
+        remainingBalance: leftover,
+        remainingDeduction: nextRemaining,
+      });
+      return acc;
+    }, []);
+
+    return accumulated.map((item) => ({
+      id: item.id,
+      initialBalance: item.initialBalance,
+      appliedDeduction: item.appliedDeduction,
+      remainingBalance: item.remainingBalance,
+    }));
+  }, [activeAdvances, params.cashAdvanceDeduction]);
+
   const allKeys = [...EARNING_ITEMS, ...DEDUCTION_ITEMS].map((i) => i.key);
   const modifiedCount = allKeys.filter(
     (k) => overridden[k] && params[k] !== syncedParams[k],
@@ -378,6 +460,7 @@ export default function PayrollGenerator() {
         },
       );
       const fresh = normalizeParams(res.data);
+      fresh.cashAdvanceDeduction = 0;
       setSyncedParams(fresh);
       setParams((prev) => {
         const next = { ...fresh };
@@ -432,6 +515,15 @@ export default function PayrollGenerator() {
       showToast("Payroll already exists for this period.", "error");
       return;
     }
+
+    if (params.cashAdvanceDeduction > totalEmployeeBalance) {
+      showToast(
+        `Cannot generate payroll: Cash advance deduction (${peso(params.cashAdvanceDeduction)}) exceeds the total available balance (${peso(totalEmployeeBalance)}).`,
+        "error",
+      );
+      return;
+    }
+
     setIsComputing(true);
     try {
       const res = await api.get(`/Payroll/compute/${selectedEmployee}`, {
@@ -642,21 +734,67 @@ export default function PayrollGenerator() {
                   onReset={handleReset}
                   onResetAll={handleResetAll}
                 />
-                <ParameterSection
-                  title="Deductions"
-                  description="Time lost and amounts withheld."
-                  type="deductions"
-                  items={DEDUCTION_ITEMS}
-                  params={params}
-                  synced={syncedParams}
-                  overridden={overridden}
-                  loading={loadingParams}
-                  disabled={isLocked || isComputing}
-                  onChange={handleChange}
-                  onOverride={handleOverride}
-                  onReset={handleReset}
-                  onResetAll={handleResetAll}
-                />
+
+                <div className="space-y-2">
+                  <ParameterSection
+                    title="Deductions"
+                    description="Time lost and amounts withheld."
+                    type="deductions"
+                    items={DEDUCTION_ITEMS}
+                    params={params}
+                    synced={syncedParams}
+                    overridden={overridden}
+                    loading={loadingParams}
+                    disabled={isLocked || isComputing}
+                    onChange={handleChange}
+                    onOverride={handleOverride}
+                    onReset={handleReset}
+                    onResetAll={handleResetAll}
+                    fieldMaxLimits={{
+                      cashAdvanceDeduction: totalEmployeeBalance,
+                    }}
+                    fieldHelperText={{
+                      cashAdvanceDeduction: `Total active balance: ${peso(totalEmployeeBalance)} | Remaining: ${peso(liveRemainingBalance)}`,
+                    }}
+                  />
+
+                  {/* Detailed Cash Advance Calculation breakdown card */}
+                  {activeAdvances.length > 0 && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs space-y-2">
+                      <div className="font-bold text-slate-800 flex items-center justify-between">
+                        <span>Active Cash Advances Breakdown (FIFO)</span>
+                        <span className="font-mono font-semibold text-amber-800">
+                          Total: {peso(totalEmployeeBalance)}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {advanceCalculations.map((calc, idx) => (
+                          <div
+                            key={calc.id}
+                            className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-slate-200/70 shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-700">
+                                #{idx + 1} (Advance ID: {calc.id})
+                              </span>
+                              <span className="text-slate-400">
+                                · Initial: {peso(calc.initialBalance)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 font-mono">
+                              <span className="text-rose-600 font-semibold">
+                                Applied: −{peso(calc.appliedDeduction)}
+                              </span>
+                              <span className="text-slate-600">
+                                Left: {peso(calc.remainingBalance)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Live summary */}
@@ -776,6 +914,16 @@ export default function PayrollGenerator() {
                             No days worked recorded for this period.
                           </li>
                         )}
+                        {params.cashAdvanceDeduction > totalEmployeeBalance && (
+                          <li className="flex gap-1.5 text-rose-700 font-medium">
+                            <AlertCircle
+                              size={13}
+                              className="shrink-0 mt-0.5"
+                            />
+                            Cash advance deduction exceeds total active balance
+                            ({peso(totalEmployeeBalance)}).
+                          </li>
+                        )}
                         {estimate.isNegative && (
                           <li className="flex gap-1.5 text-rose-700 font-medium">
                             <AlertCircle
@@ -811,7 +959,11 @@ export default function PayrollGenerator() {
                     ) : (
                       <button
                         onClick={() => setShowConfirmModal(true)}
-                        disabled={isComputing || loadingParams}
+                        disabled={
+                          isComputing ||
+                          loadingParams ||
+                          params.cashAdvanceDeduction > totalEmployeeBalance
+                        }
                         className="w-full bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-3 rounded-lg text-sm font-bold cursor-pointer inline-flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isComputing ? (

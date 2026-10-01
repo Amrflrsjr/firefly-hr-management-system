@@ -194,6 +194,7 @@ export default function Timesheet() {
 
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
 
   const [loadingData, setLoadingData] = useState<boolean>(true);
@@ -595,6 +596,7 @@ export default function Timesheet() {
   const clearDates = () => {
     setStartDate("");
     setEndDate("");
+    setSelectedPreset(null);
     setRecordsPage(1);
   };
 
@@ -749,8 +751,9 @@ export default function Timesheet() {
                   return (
                     <Chip
                       key={p.label}
-                      active={startDate === s && endDate === e}
+                      active={selectedPreset === p.label}
                       onClick={() => {
+                        setSelectedPreset(p.label);
                         setStartDate(s);
                         setEndDate(e);
                         setRecordsPage(1);
@@ -767,6 +770,7 @@ export default function Timesheet() {
                   value={startDate}
                   max={endDate || undefined}
                   onChange={(e) => {
+                    setSelectedPreset(null);
                     setStartDate(e.target.value);
                     setRecordsPage(1);
                   }}
@@ -779,6 +783,7 @@ export default function Timesheet() {
                   value={endDate}
                   min={startDate || undefined}
                   onChange={(e) => {
+                    setSelectedPreset(null);
                     setEndDate(e.target.value);
                     setRecordsPage(1);
                   }}

@@ -41,7 +41,11 @@ export function normalizeParams(data: unknown): PayrollParams {
   const src = (data ?? {}) as Record<string, unknown>;
   const out = { ...EMPTY_PARAMS };
   (Object.keys(out) as PayrollParamKey[]).forEach((k) => {
-    out[k] = Number(src[k]) || 0;
+    if (k === "cashAdvanceDeduction") {
+      out[k] = 0;
+    } else {
+      out[k] = Number(src[k]) || 0;
+    }
   });
   return out;
 }
