@@ -1,115 +1,143 @@
 import { useEffect, useState } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Monitor, Store } from "lucide-react";
 
 interface LocationCellProps {
   lat: number;
   lon: number;
 }
 
-const addressCache: Record<string, string> = {};
+const SHOP_LAT = 10.3685651;
+const SHOP_LON = 123.9304048;
+const AT_SHOP_RADIUS_METERS = 150;
+
+const addressCache = new Map<string, string>();
+const inflight = new Map<string, Promise<string>>();
 
 function calculateShopDistance(lat: number, lon: number): number {
-  if (!lat || !lon || (lat === 0 && lon === 0)) return -1;
-  const shopLat = 10.3685651;
-  const shopLon = 123.9304048;
   const earthRadiusMeters = 6371e3;
-
   const toRad = (angle: number) => (angle * Math.PI) / 180.0;
-  const dLat = toRad(lat - shopLat);
-  const dLon = toRad(lon - shopLon);
+  const dLat = toRad(lat - SHOP_LAT);
+  const dLon = toRad(lon - SHOP_LON);
 
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(shopLat)) *
+    Math.cos(toRad(SHOP_LAT)) *
       Math.cos(toRad(lat)) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadiusMeters * c;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(meters: number): string {
+  return meters < 1000
+    ? `${Math.round(meters)} m`
+    : `${(meters / 1000).toFixed(1)} km`;
+}
+
+/**
+ * Reverse-geocodes once per unique coordinate, even if many rows ask at the
+ * same time (Nominatim rate-limits aggressively). Failures aren't cached.
+ */
+function fetchAddress(lat: number, lon: number, key: string): Promise<string> {
+  const fallback = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+  const hit = addressCache.get(key);
+  if (hit) return Promise.resolve(hit);
+
+  const running = inflight.get(key);
+  if (running) return running;
+
+  const request = fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`,
+    { headers: { "Accept-Language": "en" } },
+  )
+    .then((res) => res.json())
+    .then((data) => {
+      const addr = data?.address;
+      if (!addr) return fallback;
+      const street = addr.road || addr.suburb || addr.neighbourhood || "";
+      const city = addr.city || addr.municipality || addr.town || "";
+      const label = [street, city].filter(Boolean).join(", ") || fallback;
+      addressCache.set(key, label);
+      return label;
+    })
+    .catch(() => fallback)
+    .finally(() => inflight.delete(key));
+
+  inflight.set(key, request);
+  return request;
 }
 
 export default function LocationCell({ lat, lon }: LocationCellProps) {
-  const isNoGps = !lat || !lon || (lat === 0 && lon === 0);
-  const cacheKey = isNoGps ? "" : `${lat.toFixed(4)},${lon.toFixed(4)}`;
-  const cachedAddress = cacheKey ? addressCache[cacheKey] : undefined;
+  const hasGps = Boolean(lat && lon);
+  const key = hasGps ? `${lat.toFixed(4)},${lon.toFixed(4)}` : "";
+  const distance = hasGps ? calculateShopDistance(lat, lon) : -1;
+  const atShop = hasGps && distance <= AT_SHOP_RADIUS_METERS;
+  // Logs made at the shop don't need a street address at all.
+  const needsLookup = hasGps && !atShop;
 
-  const [address, setAddress] = useState<string>(
-    isNoGps ? "Shop / PC (No GPS)" : cachedAddress || "Loading location...",
-  );
-  const [loading, setLoading] = useState<boolean>(!isNoGps && !cachedAddress);
-
-  const distanceMeters = calculateShopDistance(lat, lon);
-  const isAtShop = distanceMeters >= 0 && distanceMeters <= 150;
+  const [resolved, setResolved] = useState<{
+    key: string;
+    text: string;
+  } | null>(() => {
+    const hit = key ? addressCache.get(key) : undefined;
+    return hit ? { key, text: hit } : null;
+  });
+  const address = resolved?.key === key ? resolved.text : null;
 
   useEffect(() => {
-    if (isNoGps || cachedAddress) return;
-
-    let isMounted = true;
-    const fetchAddress = async () => {
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`,
-          { headers: { "Accept-Language": "en" } },
-        );
-        const data = await response.json();
-        if (!isMounted) return;
-
-        if (data && data.address) {
-          const addr = data.address;
-          const street = addr.road || addr.suburb || addr.neighbourhood || "";
-          const city = addr.city || addr.municipality || addr.town || "Mandaue";
-          const formatted = street
-            ? `${street}, ${city}`
-            : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-
-          addressCache[cacheKey] = formatted;
-          setAddress(formatted);
-        } else {
-          setAddress(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-        }
-      } catch {
-        if (isMounted) setAddress(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchAddress();
+    if (!needsLookup) return;
+    let alive = true;
+    fetchAddress(lat, lon, key).then((text) => {
+      if (alive) setResolved({ key, text });
+    });
     return () => {
-      isMounted = false;
+      alive = false;
     };
-  }, [lat, lon, isNoGps, cachedAddress, cacheKey]);
+  }, [needsLookup, lat, lon, key]);
+
+  if (!hasGps) {
+    return (
+      <div
+        className="flex items-center gap-2 text-xs text-slate-600"
+        title="No GPS captured. Logged from the shop computer or office network."
+      >
+        <Monitor size={14} className="shrink-0 text-slate-400" />
+        <span>Shop computer</span>
+      </div>
+    );
+  }
+
+  if (atShop) {
+    return (
+      <div
+        className="flex items-center gap-2 text-xs"
+        title={`Lat: ${lat}, Lon: ${lon}`}
+      >
+        <Store size={14} className="shrink-0 text-emerald-600" />
+        <span className="font-medium text-emerald-800">At the shop</span>
+        <span className="text-slate-400">~{formatDistance(distance)}</span>
+      </div>
+    );
+  }
 
   return (
     <div
-      className="flex flex-col gap-0.5 max-w-xs"
+      className="flex min-w-0 flex-col gap-0.5"
       title={`Lat: ${lat}, Lon: ${lon}`}
     >
-      <div className="flex items-center gap-1.5 text-slate-700 text-xs font-medium">
-        <MapPin size={13} className="text-amber-700 shrink-0" />
-        <span className="truncate">{loading ? "Resolving..." : address}</span>
-      </div>
-
-      <div className="flex items-center gap-1.5 pl-4">
-        {isNoGps ? (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
-            Office Network / PC
-          </span>
-        ) : isAtShop ? (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-            At Shop (~{Math.round(distanceMeters)}m)
-          </span>
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-800">
+        <MapPin size={14} className="shrink-0 text-amber-600" />
+        {address ? (
+          <span className="truncate">{address}</span>
         ) : (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-            Location (~
-            {Math.round(
-              distanceMeters >= 1000 ? distanceMeters / 1000 : distanceMeters,
-            )}
-            {distanceMeters >= 1000 ? "km" : "m"} away)
-          </span>
+          <span className="h-3 w-28 animate-pulse rounded bg-slate-200 motion-reduce:animate-none" />
         )}
       </div>
+      <span className="pl-5.5 text-[11px] font-medium text-amber-700">
+        {formatDistance(distance)} from the shop
+      </span>
     </div>
   );
 }

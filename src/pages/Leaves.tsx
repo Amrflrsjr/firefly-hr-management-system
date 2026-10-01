@@ -1,25 +1,31 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import api from "../services/api";
 import {
   Plus,
-  CheckCircle,
+  Check,
   Trash2,
   X,
   Calendar as CalendarIcon,
-  Loader2,
   UserCheck,
-  CheckCircle2,
   AlertCircle,
-  XCircle,
   Ban,
   ChevronDown,
-  Clock,
   Tag,
+  CalendarX2,
+  RotateCw,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
 import PaginationBar from "../components/timesheet/PaginationBar";
 import LeaveModal from "../components/leaves/LeaveModal";
+import { FOCUS, ROW_BASE, statusLabel } from "../utils/uiConstants";
+import {
+  PersonCell,
+  SkeletonRows,
+  EmptyState,
+  Chip,
+  StatusBadge,
+} from "../components/ListUI";
 
 interface Leave {
   id: number;
@@ -40,24 +46,92 @@ interface Employee {
   remainingLeaveHours: number;
 }
 
-const ITEMS_PER_PAGE = 5;
+type StatusFilter = "All" | "In Review" | "Approved" | "Declined" | "Cancelled";
+
+const ITEMS_PER_PAGE = 15;
+const STATUS_FILTERS: StatusFilter[] = [
+  "All",
+  "In Review",
+  "Approved",
+  "Declined",
+  "Cancelled",
+];
+
+// key = `${showEmployee}-${actionsKind}`
+const LEAVE_GRID: Record<string, string> = {
+  "1-admin":
+    "md:grid-cols-[minmax(0,1.2fr)_140px_minmax(0,1fr)_72px_120px_216px]",
+  "1-emp": "md:grid-cols-[minmax(0,1.2fr)_140px_minmax(0,1fr)_72px_120px_96px]",
+  "1-none": "md:grid-cols-[minmax(0,1.2fr)_140px_minmax(0,1fr)_72px_120px]",
+  "0-admin": "md:grid-cols-[140px_minmax(0,1fr)_72px_120px_216px]",
+  "0-emp": "md:grid-cols-[140px_minmax(0,1fr)_72px_120px_96px]",
+  "0-none": "md:grid-cols-[140px_minmax(0,1fr)_72px_120px]",
+};
+
+const fmtDate = (d: Date) =>
+  d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+/* ---------- small presentational pieces ---------- */
+
+function BalanceMeter({ remaining, max }: { remaining: number; max: number }) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (remaining / max) * 100)) : 0;
+  const bar =
+    pct > 40 ? "bg-emerald-500" : pct > 15 ? "bg-amber-500" : "bg-rose-500";
+  return (
+    <div className="flex min-w-48 flex-col gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="font-semibold tabular-nums text-slate-900">
+          {remaining} hrs left
+        </span>
+        <span className="tabular-nums text-slate-400">of {max}</span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Leave balance"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={remaining}
+        className="h-1.5 overflow-hidden rounded-full bg-slate-100"
+      >
+        <div
+          className={`h-full rounded-full ${bar}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ---------- page ---------- */
 
 export default function Leaves() {
-  const [activeTab, setActiveTab] = useState<"all" | "pending">("all");
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Nothing to fetch for a signed-out employee, so don't start in a loading state.[cite: 2]
+  const [loading, setLoading] = useState<boolean>(
+    () =>
+      localStorage.getItem("role") === "Admin" ||
+      Boolean(localStorage.getItem("employeeId")),
+  );
+  const [loadError, setLoadError] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [showModal, setShowModal] = useState(false);
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
+  const isAdmin = role === "Admin";
 
   const [selectedEmployee, setSelectedEmployee] = useState<string>(
-    role === "Admin" ? "all" : loggedInEmployeeId,
+    isAdmin ? "all" : loggedInEmployeeId,
   );
 
+  // The modal has its own employee field, so it never changes the page filter.[cite: 2]
   const [formData, setFormData] = useState({
     employeeId: "",
     leaveDate: "",
@@ -85,116 +159,136 @@ export default function Leaves() {
     type: "success" | "error";
   } | null>(null);
 
-  const showToast = useCallback(
-    (text: string, type: "success" | "error" = "success") => {
-      setToast({ text, type });
-      setTimeout(() => setToast(null), 3000);
-    },
-    [],
-  );
+  const showToast = (text: string, type: "success" | "error" = "success") =>
+    setToast({ text, type });
 
-  const loadData = useCallback(
-    async (targetEmpId: string) => {
-      setLoading(true);
-      const effectiveId = role === "Admin" ? targetEmpId : loggedInEmployeeId;
+  // Auto-dismiss; a new toast replaces the object, which restarts the timer.[cite: 2]
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // Fetch logic contained entirely inside useEffect to avoid cascading setState warnings
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchData() {
+      if (!isAdmin && !loggedInEmployeeId) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+      const effectiveId = isAdmin ? selectedEmployee : loggedInEmployeeId;
 
       try {
         const empRes = await api.get("/Employees");
-        const filteredNonAdmins = (empRes.data || [])
+        const nonAdmins = (empRes.data || [])
           .filter((emp: Employee) => !emp.isAdmin)
           .sort((a: Employee, b: Employee) =>
             a.lastName.localeCompare(b.lastName),
           );
-        setEmployees(filteredNonAdmins);
 
-        let endpoint = "/Leaves";
-        if (effectiveId && effectiveId !== "all") {
-          endpoint = `/Leaves/employee/${effectiveId}`;
-        }
+        if (!isMounted) return;
+        setEmployees(nonAdmins);
+
+        const endpoint =
+          effectiveId && effectiveId !== "all"
+            ? `/Leaves/employee/${effectiveId}`
+            : "/Leaves";
         const leavesRes = await api.get(endpoint);
+
+        if (!isMounted) return;
         setLeaves(leavesRes.data || []);
       } catch {
-        showToast("Failed to load leave records.", "error");
+        if (!isMounted) return;
         setLeaves([]);
+        setLoadError(true);
       } finally {
-        setLoading(false);
-      }
-    },
-    [role, loggedInEmployeeId, showToast],
-  );
-
-  useEffect(() => {
-    let isMounted = true;
-    const initLoad = async () => {
-      if (role === "Admin") {
-        try {
-          const res = await api.get("/Employees");
-          if (!isMounted) return;
-
-          const nonAdminEmployees = res.data
-            .filter((emp: Employee) => !emp.isAdmin)
-            .sort((a: Employee, b: Employee) =>
-              a.lastName.localeCompare(b.lastName),
-            );
-
-          setEmployees(nonAdminEmployees);
-          if (nonAdminEmployees.length > 0) {
-            setFormData((prev) => ({
-              ...prev,
-              employeeId: String(nonAdminEmployees[0].id),
-            }));
-          }
-          await loadData("all");
-        } catch {
-          if (isMounted) setLoading(false);
-        }
-      } else if (loggedInEmployeeId) {
-        await loadData(loggedInEmployeeId);
-      } else {
         if (isMounted) setLoading(false);
       }
-    };
+    }
 
-    initLoad();
+    fetchData();
+
     return () => {
       isMounted = false;
     };
-  }, [role, loggedInEmployeeId, loadData]);
+  }, [isAdmin, loggedInEmployeeId, selectedEmployee]);
 
-  const currentActiveBalance = useMemo(() => {
-    const targetId =
-      role === "Admin"
-        ? selectedEmployee === "all"
-          ? null
-          : Number(selectedEmployee)
-        : Number(loggedInEmployeeId);
-    if (!targetId) return null;
-    const emp = employees.find((e) => e.id === targetId);
-    return emp ? emp.remainingLeaveHours : null;
-  }, [role, selectedEmployee, loggedInEmployeeId, employees]);
+  const startLoading = () => {
+    setLoading(true);
+    setLoadError(false);
+  };
+
+  const reload = () => {
+    startLoading();
+    // Re-trigger by toggling/updating state or executing fetch manually
+    const effectiveId = isAdmin ? selectedEmployee : loggedInEmployeeId;
+    if (!isAdmin && !loggedInEmployeeId) return;
+
+    api
+      .get(
+        effectiveId && effectiveId !== "all"
+          ? `/Leaves/employee/${effectiveId}`
+          : "/Leaves",
+      )
+      .then((res) => setLeaves(res.data || []))
+      .catch(() => {
+        setLeaves([]);
+        setLoadError(true);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  const closeConfirm = () =>
+    setModalConfig((prev) => ({ ...prev, isOpen: false }));
+
+  const balanceEmployee = useMemo(() => {
+    const id = isAdmin
+      ? selectedEmployee === "all"
+        ? 0
+        : Number(selectedEmployee)
+      : Number(loggedInEmployeeId);
+    return id ? (employees.find((e) => e.id === id) ?? null) : null;
+  }, [isAdmin, selectedEmployee, loggedInEmployeeId, employees]);
+
+  const exhausted =
+    balanceEmployee !== null && balanceEmployee.remainingLeaveHours <= 0;
+
+  const openModal = () => {
+    if (isAdmin) {
+      setFormData((prev) => ({
+        ...prev,
+        employeeId:
+          selectedEmployee !== "all"
+            ? selectedEmployee
+            : String(employees[0]?.id ?? ""),
+      }));
+    }
+    setShowModal(true);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    const targetId =
-      role === "Admin" ? formData.employeeId : loggedInEmployeeId;
+    const targetId = isAdmin ? formData.employeeId : loggedInEmployeeId;
 
     if (!targetId || targetId === "all") {
-      showToast("Please select a valid employee.", "error");
+      showToast("Choose an employee.", "error");
       setIsSubmitting(false);
       return;
     }
 
-    const targetEmp = employees.find((e) => e.id === Number(targetId));
+    const targetEmp = employees.find((emp) => emp.id === Number(targetId));
     if (targetEmp && targetEmp.remainingLeaveHours <= 0) {
-      showToast("This employee has exhausted all leave hours.", "error");
+      showToast("This employee has no leave hours left.", "error");
       setIsSubmitting(false);
       return;
     }
 
     if (targetEmp && formData.leaveHours > targetEmp.remainingLeaveHours) {
       showToast(
-        `Requested hours exceed remaining balance (${targetEmp.remainingLeaveHours} hrs left).`,
+        `That's more than the remaining balance (${targetEmp.remainingLeaveHours} hrs left).`,
         "error",
       );
       setIsSubmitting(false);
@@ -207,20 +301,19 @@ export default function Leaves() {
         leaveDate: new Date(formData.leaveDate).toISOString(),
         leaveHours: Number(formData.leaveHours),
         leaveType: formData.leaveType,
-        status: role === "Admin" ? "Approved" : "In Review",
+        status: isAdmin ? "Approved" : "In Review",
       });
       setShowModal(false);
-      setFormData({
-        employeeId:
-          role === "Admin" && employees.length > 0
-            ? employees[0].id.toString()
-            : loggedInEmployeeId,
+      setFormData((prev) => ({
+        ...prev,
         leaveDate: "",
         leaveHours: 8,
         leaveType: "Vacation",
-      });
-      showToast("Leave request submitted successfully!");
-      loadData(selectedEmployee);
+      }));
+      showToast(
+        isAdmin ? "Leave record added." : "Leave request sent for review.",
+      );
+      reload();
     } catch (err: unknown) {
       const errorResponse = (
         err as { response?: { data?: { message?: string } | string } }
@@ -229,7 +322,7 @@ export default function Leaves() {
         typeof errorResponse === "string"
           ? errorResponse
           : errorResponse?.message ||
-            "Insufficient leave balance or submission failed.";
+            "Couldn't save the leave. Check the balance and try again.";
       showToast(errorMsg, "error");
     } finally {
       setIsSubmitting(false);
@@ -239,7 +332,7 @@ export default function Leaves() {
   const triggerApproveModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Approve Leave Request",
+      title: "Approve leave request",
       message: "Are you sure you want to approve this leave request?",
       confirmText: "Approve",
       type: "primary",
@@ -248,12 +341,12 @@ export default function Leaves() {
           await api.put(`/Leaves/${id}/status`, JSON.stringify("Approved"), {
             headers: { "Content-Type": "application/json" },
           });
-          showToast("Leave request approved!");
-          loadData(selectedEmployee);
+          showToast("Leave request approved.");
+          reload();
         } catch {
-          showToast("Failed to approve leave.", "error");
+          showToast("Couldn't approve the leave. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
@@ -262,19 +355,19 @@ export default function Leaves() {
   const triggerDeclineModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Decline Leave Request",
+      title: "Decline leave request",
       message: "Are you sure you want to decline this leave request?",
       confirmText: "Decline",
       type: "danger",
       onConfirm: async () => {
         try {
           await api.put(`/Leaves/${id}/reject`);
-          showToast("Leave request declined successfully.");
-          loadData(selectedEmployee);
+          showToast("Leave request declined.");
+          reload();
         } catch {
-          showToast("Failed to decline leave request.", "error");
+          showToast("Couldn't decline the request. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
@@ -283,19 +376,19 @@ export default function Leaves() {
   const triggerCancelModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Cancel Leave Request",
+      title: "Cancel leave request",
       message: "Are you sure you want to cancel this pending leave request?",
-      confirmText: "Cancel Request",
+      confirmText: "Cancel request",
       type: "danger",
       onConfirm: async () => {
         try {
           await api.put(`/Leaves/${id}/cancel`);
-          showToast("Leave request cancelled successfully.");
-          loadData(selectedEmployee);
+          showToast("Leave request cancelled.");
+          reload();
         } catch {
-          showToast("Failed to cancel leave request.", "error");
+          showToast("Couldn't cancel the request. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
@@ -304,436 +397,335 @@ export default function Leaves() {
   const triggerDeleteModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Delete Leave Record",
+      title: "Delete leave record",
       message: "Are you sure you want to delete this leave record permanently?",
       confirmText: "Delete",
       type: "danger",
       onConfirm: async () => {
         try {
           await api.delete(`/Leaves/${id}`);
-          showToast("Leave record deleted successfully.");
-          loadData(selectedEmployee);
+          showToast("Leave record deleted.");
+          reload();
         } catch {
-          showToast("Failed to delete leave record.", "error");
+          showToast("Couldn't delete the leave record. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
   };
 
-  const filteredLeaves = useMemo(() => {
-    if (activeTab === "pending") {
-      return leaves.filter((l) => l.status === "In Review");
-    }
-    return leaves.filter((l) => l.status !== "In Review");
-  }, [leaves, activeTab]);
+  /* ----- derived data ----- */
 
-  const pendingCount = useMemo(() => {
-    return leaves.filter((l) => l.status === "In Review").length;
-  }, [leaves]);
+  const statusCounts: Record<StatusFilter, number> = {
+    All: leaves.length,
+    "In Review": leaves.filter((l) => l.status === "In Review").length,
+    Approved: leaves.filter((l) => l.status === "Approved").length,
+    Declined: leaves.filter((l) => l.status === "Declined").length,
+    Cancelled: leaves.filter((l) => l.status === "Cancelled").length,
+  };
+  const pendingCount = statusCounts["In Review"];
 
-  const totalPages = Math.ceil(filteredLeaves.length / ITEMS_PER_PAGE);
+  // In-review first (that's what admins act on), then newest leave date first.[cite: 2]
+  const visibleLeaves = useMemo(() => {
+    return leaves
+      .filter((l) => statusFilter === "All" || l.status === statusFilter)
+      .sort(
+        (a, b) =>
+          Number(b.status === "In Review") - Number(a.status === "In Review") ||
+          new Date(b.leaveDate).getTime() - new Date(a.leaveDate).getTime(),
+      );
+  }, [leaves, statusFilter]);
+
+  const totalPages = Math.ceil(visibleLeaves.length / ITEMS_PER_PAGE);
   const paginatedLeaves = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredLeaves.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredLeaves, currentPage]);
+    return visibleLeaves.slice(start, start + ITEMS_PER_PAGE);
+  }, [visibleLeaves, currentPage]);
 
-  const hasActionsInLeaves = useMemo(() => {
-    return paginatedLeaves.some((leave) => {
-      if (role === "Admin") return true;
-      return leave.status === "In Review";
-    });
-  }, [paginatedLeaves, role]);
+  const showActions = paginatedLeaves.some(
+    (l) => isAdmin || l.status === "In Review",
+  );
+  const actionsKind = !showActions ? "none" : isAdmin ? "admin" : "emp";
+  const showEmployeeCol = isAdmin && selectedEmployee === "all";
+  const grid = LEAVE_GRID[`${+showEmployeeCol}-${actionsKind}`];
 
-  const tableColSpan =
-    role === "Admin" && selectedEmployee === "all"
-      ? hasActionsInLeaves
-        ? 6
-        : 5
-      : hasActionsInLeaves
-        ? 5
-        : 4;
+  const changePage = (p: number) => {
+    setCurrentPage(p);
+    document.getElementById("leaves-card")?.scrollIntoView({ block: "start" });
+  };
+
+  const fileButton = (
+    <button
+      onClick={openModal}
+      disabled={loading || exhausted}
+      title={exhausted ? "No leave hours left to file" : undefined}
+      className={`flex h-10 items-center justify-center gap-1.5 rounded-lg bg-(--primary) px-4 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-(--primary-hover) cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS}`}
+    >
+      <Plus size={16} />
+      {isAdmin ? "Add leave record" : "Request leave"}
+    </button>
+  );
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <div className="space-y-5">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100 shrink-0">
-              <CalendarIcon size={18} />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                Leave Management
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                File requests and track team leave approvals.
-              </p>
-            </div>
+    <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      {/* Header */}
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-700">
+            <CalendarIcon size={19} />
           </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-            {currentActiveBalance !== null && (
-              <div className="flex items-center justify-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-700">
-                <Clock size={14} className="text-amber-600" />
-                <span>Balance: {currentActiveBalance} hrs remaining</span>
-              </div>
-            )}
-            <button
-              onClick={() => {
-                if (role === "Admin" && employees.length > 0) {
-                  setFormData((prev) => ({
-                    ...prev,
-                    employeeId: String(employees[0].id),
-                  }));
-                }
-                setShowModal(true);
-              }}
-              disabled={
-                loading ||
-                (currentActiveBalance !== null && currentActiveBalance <= 0)
-              }
-              className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer justify-center disabled:opacity-50 active:scale-[0.98]"
-            >
-              <Plus size={16} />{" "}
-              {role === "Admin" ? "Add Leave Record" : "File Leave"}
-            </button>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+              Leave management
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              File requests and track leave approvals.
+            </p>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 gap-6 sm:gap-8 px-2 overflow-x-auto">
-          <button
-            onClick={() => {
-              setActiveTab("all");
-              setCurrentPage(1);
-            }}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === "all"
-                ? "border-(--primary) text-amber-900"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            All Leaves
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab("pending");
-              setCurrentPage(1);
-            }}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              activeTab === "pending"
-                ? "border-(--primary) text-amber-900"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            {role === "Admin" ? "Pending Requests" : "My Pending Requests"}
-            {pendingCount > 0 && (
-              <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                {pendingCount}
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {balanceEmployee && (
+            <BalanceMeter
+              remaining={balanceEmployee.remainingLeaveHours}
+              max={balanceEmployee.maxLeaveHours}
+            />
+          )}
+          {fileButton}
+        </div>
+      </div>
+
+      {/* Card */}
+      <section
+        id="leaves-card"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      >
+        {/* Filters */}
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
+          {isAdmin && employees.length > 0 && (
+            <label className="flex w-full flex-col gap-1.5 sm:w-72">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <UserCheck size={13} className="text-slate-400" />
+                Employee
               </span>
-            )}
-          </button>
-        </div>
-
-        {/* Main Workspace Card */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          {role === "Admin" && employees.length > 0 && (
-            <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50/50">
-              <div className="max-w-md w-full">
-                <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2 flex items-center gap-1.5">
-                  <UserCheck size={13} className="text-slate-400" />
-                  Select Employee Filter
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedEmployee(val);
-                      setCurrentPage(1);
-                      loadData(val);
-                    }}
-                    className="w-full h-11 appearance-none border border-slate-300 bg-white px-3 pr-10 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary) cursor-pointer"
-                  >
-                    <option value="all">All Employees</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={String(emp.id)}>
-                        {emp.lastName}, {emp.firstName} (
-                        {emp.remainingLeaveHours} hrs left)
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                  />
-                </div>
-              </div>
-            </div>
+              <span className="relative">
+                <select
+                  value={selectedEmployee}
+                  disabled={loading}
+                  onChange={(e) => {
+                    startLoading();
+                    setSelectedEmployee(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-9 text-sm font-medium text-slate-800 focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20 disabled:opacity-60"
+                >
+                  <option value="all">All employees</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={String(emp.id)}>
+                      {emp.lastName}, {emp.firstName} ({emp.remainingLeaveHours}{" "}
+                      hrs left)
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+              </span>
+            </label>
           )}
 
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                  {role === "Admin" && selectedEmployee === "all" && (
-                    <th className="py-3.5 px-6">Employee</th>
-                  )}
-                  <th className="py-3.5 px-6">Leave Type</th>
-                  <th className="py-3.5 px-6">Date</th>
-                  <th className="py-3.5 px-6">Hours</th>
-                  <th className="py-3.5 px-6">Status</th>
-                  {hasActionsInLeaves && (
-                    <th className="py-3.5 px-6 text-right">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={tableColSpan}
-                      className="py-12 text-center text-slate-400"
-                    >
-                      <Loader2
-                        size={22}
-                        className="animate-spin text-amber-600 mx-auto mb-2"
-                      />
-                      Loading leave requests...
-                    </td>
-                  </tr>
-                ) : paginatedLeaves.length > 0 ? (
-                  paginatedLeaves.map((leave) => (
-                    <tr
-                      key={leave.id}
-                      className="hover:bg-slate-50/60 transition-colors"
-                    >
-                      {role === "Admin" && selectedEmployee === "all" && (
-                        <td className="py-4 px-6 font-semibold text-slate-900 text-xs">
-                          {leave.employeeName || "Employee"}
-                        </td>
-                      )}
-                      <td className="py-4 px-6 text-xs">
-                        <span className="inline-flex items-center gap-1 font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                          <Tag size={12} className="text-amber-600" />
-                          {leave.leaveType || "Vacation"}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-slate-600 text-xs font-medium">
-                        {new Date(leave.leaveDate).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </td>
-                      <td className="py-4 px-6 font-mono text-xs font-bold text-slate-700">
-                        {leave.leaveHours} hrs
-                      </td>
-                      <td className="py-4 px-6">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                            leave.status === "Approved"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                              : leave.status === "Declined"
-                                ? "bg-rose-50 text-rose-700 border border-rose-200/60"
-                                : leave.status === "Cancelled"
-                                  ? "bg-slate-100 text-slate-600 border border-slate-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                          }`}
-                        >
-                          {leave.status === "Approved" ? (
-                            <CheckCircle2 size={13} />
-                          ) : leave.status === "Declined" ? (
-                            <XCircle size={13} />
-                          ) : leave.status === "Cancelled" ? (
-                            <Ban size={13} />
-                          ) : (
-                            <AlertCircle size={13} />
-                          )}
-                          {leave.status}
-                        </span>
-                      </td>
-                      {hasActionsInLeaves && (
-                        <td className="py-4 px-6 text-right">
-                          <div className="flex items-center justify-end gap-2 flex-nowrap">
-                            {role === "Admin" &&
-                              leave.status === "In Review" && (
-                                <>
-                                  <button
-                                    onClick={() =>
-                                      triggerApproveModal(leave.id)
-                                    }
-                                    className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg text-xs font-semibold border border-emerald-200 cursor-pointer inline-flex items-center gap-1 shrink-0"
-                                  >
-                                    <CheckCircle size={14} /> Approve
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      triggerDeclineModal(leave.id)
-                                    }
-                                    className="text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg text-xs font-semibold border border-rose-200 cursor-pointer inline-flex items-center gap-1 shrink-0"
-                                  >
-                                    <X size={14} /> Decline
-                                  </button>
-                                </>
-                              )}
-                            {role !== "Admin" &&
-                              leave.status === "In Review" && (
-                                <button
-                                  onClick={() => triggerCancelModal(leave.id)}
-                                  className="text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 cursor-pointer inline-flex items-center gap-1.5 shrink-0"
-                                >
-                                  <Ban size={14} /> Cancel
-                                </button>
-                              )}
-                            {role === "Admin" && (
-                              <button
-                                onClick={() => triggerDeleteModal(leave.id)}
-                                className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={tableColSpan}
-                      className="py-12 text-center text-slate-400 text-xs"
-                    >
-                      No leave records found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Card View */}
-          <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
-            {loading ? (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 space-y-2">
-                <Loader2
-                  size={22}
-                  className="animate-spin text-amber-600 mx-auto"
-                />
-                <p className="text-xs font-semibold text-slate-500">
-                  Loading leaves...
-                </p>
-              </div>
-            ) : paginatedLeaves.length > 0 ? (
-              paginatedLeaves.map((leave) => (
-                <div
-                  key={leave.id}
-                  className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3"
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-slate-600">Status</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {STATUS_FILTERS.map((s) => (
+                <Chip
+                  key={s}
+                  active={statusFilter === s}
+                  onClick={() => {
+                    setStatusFilter(s);
+                    setCurrentPage(1);
+                  }}
                 >
-                  <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                    <div>
-                      {role === "Admin" && selectedEmployee === "all" && (
-                        <h3 className="font-bold text-slate-900 text-xs">
-                          {leave.employeeName || "Employee"}
-                        </h3>
-                      )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          <Tag size={11} className="text-amber-600" />
-                          {leave.leaveType || "Vacation"}
-                        </span>
-                        <span className="text-xs font-medium text-slate-500">
-                          {new Date(leave.leaveDate).toLocaleDateString(
-                            "en-US",
-                            {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            },
-                          )}
-                        </span>
-                      </div>
-                    </div>
+                  {s === "All" ? "All" : statusLabel(s)}
+                  <span className="ml-1.5 font-normal text-slate-400">
+                    {statusCounts[s]}
+                  </span>
+                  {s === "In Review" && pendingCount > 0 && (
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${
-                        leave.status === "Approved"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : leave.status === "Declined"
-                            ? "bg-rose-50 text-rose-700 border border-rose-200"
-                            : leave.status === "Cancelled"
-                              ? "bg-slate-100 text-slate-600 border border-slate-200"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
-                    >
-                      {leave.status}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-xs pt-1">
-                    <span className="font-mono font-bold text-slate-800">
-                      {leave.leaveHours} Hours
-                    </span>
-                    <div className="flex items-center gap-2 flex-nowrap">
-                      {role === "Admin" && leave.status === "In Review" && (
-                        <>
-                          <button
-                            onClick={() => triggerApproveModal(leave.id)}
-                            className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 inline-flex items-center gap-1 shrink-0"
-                          >
-                            <CheckCircle size={13} /> Approve
-                          </button>
-                          <button
-                            onClick={() => triggerDeclineModal(leave.id)}
-                            className="px-2.5 py-1.5 bg-rose-50 text-rose-700 rounded-lg text-xs font-bold border border-rose-200 inline-flex items-center gap-1 shrink-0"
-                          >
-                            <X size={13} /> Decline
-                          </button>
-                        </>
-                      )}
-                      {role !== "Admin" && leave.status === "In Review" && (
-                        <button
-                          onClick={() => triggerCancelModal(leave.id)}
-                          className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 inline-flex items-center gap-1.5 shrink-0"
-                        >
-                          <Ban size={13} /> Cancel
-                        </button>
-                      )}
-                      {role === "Admin" && (
-                        <button
-                          onClick={() => triggerDeleteModal(leave.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg shrink-0"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
-                No leave records found.
-              </div>
-            )}
+                      aria-hidden
+                      className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle"
+                    />
+                  )}
+                </Chip>
+              ))}
+            </div>
           </div>
+        </div>
 
+        {/* Body */}
+        {loading ? (
+          <SkeletonRows />
+        ) : loadError ? (
+          <EmptyState
+            icon={<AlertCircle size={20} />}
+            title="Couldn't load leave records"
+            text="Check your connection and try again."
+            action={
+              <button
+                onClick={reload}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+              >
+                <RotateCw size={13} />
+                Try again
+              </button>
+            }
+          />
+        ) : paginatedLeaves.length === 0 ? (
+          <EmptyState
+            icon={<CalendarX2 size={20} />}
+            title={
+              statusFilter === "All"
+                ? "No leave records yet"
+                : `No ${statusLabel(statusFilter).toLowerCase()} leave`
+            }
+            text={
+              statusFilter === "All"
+                ? isAdmin
+                  ? "Leave you add or that employees request will show up here."
+                  : "When you request leave, you can track its approval here."
+                : "Nothing matches this status. Try another one."
+            }
+            action={
+              statusFilter !== "All" ? (
+                <button
+                  onClick={() => setStatusFilter("All")}
+                  className={`inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                >
+                  Show all leave
+                </button>
+              ) : (
+                !exhausted && fileButton
+              )
+            }
+          />
+        ) : (
+          <>
+            <div
+              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
+            >
+              {showEmployeeCol && <span>Employee</span>}
+              <span>Type</span>
+              <span>Date</span>
+              <span>Hours</span>
+              <span>Status</span>
+              {showActions && <span className="sr-only">Actions</span>}
+            </div>
+
+            <ul className="divide-y divide-slate-100">
+              {paginatedLeaves.map((leave) => {
+                const date = new Date(leave.leaveDate);
+                const isPending = leave.status === "In Review";
+                return (
+                  <li
+                    key={leave.id}
+                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 ${ROW_BASE} ${grid}`}
+                  >
+                    {isPending && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
+                      />
+                    )}
+
+                    {showEmployeeCol && (
+                      <div className="w-full min-w-0 md:w-auto">
+                        <PersonCell name={leave.employeeName || "Employee"} />
+                      </div>
+                    )}
+
+                    <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      <Tag size={12} className="text-amber-600" />
+                      {leave.leaveType || "Vacation"}
+                    </span>
+
+                    <div className="leading-tight">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {fmtDate(date)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {date.toLocaleDateString("en-US", { weekday: "long" })}
+                      </p>
+                    </div>
+
+                    <span className="text-sm font-semibold tabular-nums text-slate-900">
+                      {leave.leaveHours} hrs
+                    </span>
+
+                    <StatusBadge status={leave.status} />
+
+                    {showActions && (
+                      <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
+                        {isAdmin && isPending && (
+                          <>
+                            <button
+                              onClick={() => triggerApproveModal(leave.id)}
+                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
+                            >
+                              <Check size={14} />
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => triggerDeclineModal(leave.id)}
+                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
+                            >
+                              <X size={14} />
+                              Decline
+                            </button>
+                          </>
+                        )}
+                        {!isAdmin && isPending && (
+                          <button
+                            onClick={() => triggerCancelModal(leave.id)}
+                            className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                          >
+                            <Ban size={13} />
+                            Cancel
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => triggerDeleteModal(leave.id)}
+                            aria-label="Delete leave record"
+                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        {!loading && (
           <PaginationBar
             page={currentPage}
             totalPages={totalPages}
-            onPageChange={setCurrentPage}
+            onPageChange={changePage}
           />
-        </div>
-      </div>
+        )}
+      </section>
 
       <LeaveModal
         isOpen={showModal}
         role={role}
         employees={employees}
+        selfEmployeeId={loggedInEmployeeId}
         formData={formData}
         isSubmitting={isSubmitting}
         onClose={() => setShowModal(false)}
@@ -750,7 +742,7 @@ export default function Leaves() {
         confirmText={modalConfig.confirmText}
         type={modalConfig.type}
         onConfirm={modalConfig.onConfirm}
-        onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onClose={closeConfirm}
       />
 
       <Toast

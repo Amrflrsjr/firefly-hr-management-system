@@ -1,5 +1,6 @@
 import { X, Edit3, Clock } from "lucide-react";
 import type { Employee } from "../../types/employee";
+import { FOCUS } from "../../utils/uiConstants";
 
 interface ViewEmployeeModalProps {
   employee: Employee | null;
@@ -15,11 +16,11 @@ export default function ViewEmployeeModal({
   if (!employee) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-      <div className="bg-white p-6 sm:p-8 rounded-2xl max-w-2xl w-full space-y-6 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-fadeIn">
+      <div className="max-h-[90vh] w-full max-w-2xl space-y-6 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xl">
+        <div className="flex items-start justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-(--primary) font-bold text-lg flex items-center justify-center shadow-md shrink-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-(--primary) text-lg font-bold shadow-md">
               {employee.firstName?.[0]}
               {employee.lastName?.[0]}
             </div>
@@ -27,7 +28,7 @@ export default function ViewEmployeeModal({
               <h2 className="text-base font-bold text-slate-900">
                 {employee.firstName} {employee.middleName} {employee.lastName}
               </h2>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs font-medium text-slate-500">
                 {employee.jobTitle} • {employee.officeType} Office (
                 {employee.employmentStatus})
               </p>
@@ -35,7 +36,7 @@ export default function ViewEmployeeModal({
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+            className="rounded-lg p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
           >
             <X size={20} />
           </button>
@@ -44,31 +45,31 @@ export default function ViewEmployeeModal({
         <div className="space-y-4 text-xs">
           {/* Leave Balance Overview */}
           <div>
-            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800 flex items-center gap-1.5">
-              <Clock size={13} /> Leave Balance Summary
+            <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              <Clock size={13} /> Leave balance summary
             </h3>
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/60">
-                <span className="text-[10px] text-amber-800 block font-bold">
-                  Max Limit
+              <div className="rounded-xl border border-amber-200/60 bg-amber-50/50 p-3">
+                <span className="block text-[10px] font-bold text-amber-800">
+                  Max limit
                 </span>
-                <span className="font-mono font-bold text-slate-900 text-sm">
+                <span className="font-mono text-sm font-bold text-slate-900">
                   {employee.maxLeaveHours ?? 40} hrs
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Used Hours
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Used hours
                 </span>
-                <span className="font-mono font-bold text-slate-700 text-sm">
+                <span className="font-mono text-sm font-bold text-slate-700">
                   {employee.usedLeaveHours ?? 0} hrs
                 </span>
               </div>
-              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-200/60">
-                <span className="text-[10px] text-emerald-800 block font-bold">
+              <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/50 p-3">
+                <span className="block text-[10px] font-bold text-emerald-800">
                   Remaining
                 </span>
-                <span className="font-mono font-bold text-emerald-700 text-sm">
+                <span className="font-mono text-sm font-bold text-emerald-700">
                   {employee.remainingLeaveHours ?? 40} hrs
                 </span>
               </div>
@@ -76,49 +77,49 @@ export default function ViewEmployeeModal({
           </div>
 
           <div>
-            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800">
-              Account & Identity
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              Account & identity
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
                   Employee ID
                 </span>
                 <span className="font-mono font-bold text-slate-900">
                   {employee.employeeIdNumber}
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
                   Username
                 </span>
                 <span className="font-semibold">@{employee.username}</span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Civil Status
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Civil status
                 </span>
                 <span className="font-semibold">
                   {employee.civilStatus || "N/A"}
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
                   Gender
                 </span>
                 <span className="font-semibold">
                   {employee.gender || "N/A"}
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
                   Age
                 </span>
                 <span className="font-semibold">{employee.age} yrs</span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Blood Type
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Blood type
                 </span>
                 <span className="font-semibold">
                   {employee.bloodType || "N/A"}
@@ -128,29 +129,29 @@ export default function ViewEmployeeModal({
           </div>
 
           <div>
-            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800">
-              Contact & Addresses
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              Contact & addresses
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Contact & Email
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Contact & email
                 </span>
-                <span className="font-semibold block">
+                <span className="block font-semibold">
                   {employee.contactNumber || "N/A"}
                 </span>
-                <span className="text-slate-500 text-[11px]">
+                <span className="text-[11px] text-slate-500">
                   {employee.personalEmailAddress || "N/A"}
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
                   Addresses
                 </span>
-                <span className="font-semibold block">
+                <span className="block font-semibold">
                   Current: {employee.currentAddress || "N/A"}
                 </span>
-                <span className="text-slate-500 text-[11px]">
+                <span className="text-[11px] text-slate-500">
                   Permanent: {employee.permanentAddress || "N/A"}
                 </span>
               </div>
@@ -158,35 +159,35 @@ export default function ViewEmployeeModal({
           </div>
 
           <div>
-            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800">
-              Employment & Compensation
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              Employment & compensation
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Employment Type
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Employment type
                 </span>
                 <span className="font-semibold">{employee.employmentType}</span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Daily Salary
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Daily salary
                 </span>
                 <span className="font-mono font-bold text-slate-900">
                   ₱{employee.dailySalary?.toFixed(2)}
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Daily Allowance
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Daily allowance
                 </span>
                 <span className="font-mono font-bold text-slate-900">
                   ₱{employee.dailyAllowance?.toFixed(2)}
                 </span>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Gov Deductions
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3">
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Gov deductions
                 </span>
                 <span className="font-semibold">
                   {employee.hasGovernmentDeductions ? "Yes" : "No"}
@@ -196,29 +197,29 @@ export default function ViewEmployeeModal({
           </div>
 
           <div>
-            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800">
-              Statutory Numbers
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              Statutory numbers
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-slate-200/60 bg-slate-50 p-3">
               <div>
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  SSS Number
+                <span className="block text-[10px] font-bold text-slate-400">
+                  SSS number
                 </span>
                 <span className="font-mono font-semibold">
                   {employee.sssNumber || "N/A"}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  PhilHealth Number
+                <span className="block text-[10px] font-bold text-slate-400">
+                  PhilHealth number
                 </span>
                 <span className="font-mono font-semibold">
                   {employee.philHealthNumber || "N/A"}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Pag-IBIG Number
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Pag-IBIG number
                 </span>
                 <span className="font-mono font-semibold">
                   {employee.pagIbigNumber || "N/A"}
@@ -228,13 +229,13 @@ export default function ViewEmployeeModal({
           </div>
 
           <div>
-            <h3 className="font-bold mb-2 uppercase tracking-wider text-[10px] text-amber-800">
-              Emergency Contact
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              Emergency contact
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-slate-200/60 bg-slate-50 p-3">
               <div>
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Name & Relation
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Name & relation
                 </span>
                 <span className="font-semibold">
                   {employee.emergencyContactName || "N/A"} (
@@ -242,16 +243,16 @@ export default function ViewEmployeeModal({
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Emergency Number
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Emergency number
                 </span>
                 <span className="font-semibold">
                   {employee.emergencyContactNumber || "N/A"}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-bold">
-                  Emergency Address
+                <span className="block text-[10px] font-bold text-slate-400">
+                  Emergency address
                 </span>
                 <span className="font-semibold">
                   {employee.emergencyContactAddress || "N/A"}
@@ -261,18 +262,18 @@ export default function ViewEmployeeModal({
           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
           <button
             type="button"
             onClick={() => onEdit(employee)}
-            className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+            className={`flex items-center gap-1.5 rounded-xl bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-200 cursor-pointer ${FOCUS}`}
           >
-            <Edit3 size={14} /> Edit Profile
+            <Edit3 size={14} /> Edit profile
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            className={`rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 cursor-pointer ${FOCUS}`}
           >
             Close
           </button>

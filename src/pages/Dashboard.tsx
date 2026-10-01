@@ -150,7 +150,7 @@ const getGreeting = () => {
 
 function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
-    <div className={`animate-pulse rounded-md bg-slate-200/70 ${className}`} />
+    <div className={`animate-pulse rounded-xl bg-slate-200/70 ${className}`} />
   );
 }
 
@@ -175,7 +175,7 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metricsError, setMetricsError] = useState(false);
 
-  // Dynamic cutoff & holiday states
+  // Dynamic cutoff & holiday states[cite: 16]
   const [payrollCutoff, setPayrollCutoff] = useState<Date>(getPayrollCutoff());
   const [daysUntilCutoff, setDaysUntilCutoff] = useState<number>(
     getDaysUntil(getPayrollCutoff()),
@@ -195,7 +195,7 @@ export default function Dashboard() {
 
     setTimeout(() => {
       setToast(null);
-    }, 3000);
+    }, 3500);
   };
 
   const refreshDashboardData = useCallback(
@@ -443,31 +443,31 @@ export default function Dashboard() {
     metrics!.hasClockedOutToday;
 
   return (
-    <div className="min-h-full w-full bg-slate-50">
-      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+    <div className="min-h-full w-full bg-slate-50/50">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {/* HEADER */}
-        <header className="mb-6 sm:mb-7">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <header className="mb-6 sm:mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="mb-1 text-sm font-medium text-slate-500">
-                {isAdmin ? "Administrative Portal" : "Employee Dashboard"}
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                {isAdmin ? "Administrative Portal" : "Employee Workspace"}
               </p>
 
-              <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
                 {getGreeting()}, {userName}
               </h1>
 
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-xs sm:text-sm text-slate-500">
                 {isAdmin
-                  ? "Manage system-wide operations, approvals, and records."
-                  : "Manage your attendance, requests, and work records."}
+                  ? "Manage system-wide operations, approvals, and personnel records."
+                  : "Track your real-time attendance, schedule, and payroll metrics."}
               </p>
             </div>
 
-            <div className="hidden shrink-0 space-y-0.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-right shadow-sm sm:block">
-              <p className="text-xs font-medium text-slate-400">
+            <div className="hidden shrink-0 space-y-0.5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-right shadow-xs sm:block">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 {new Date().toLocaleDateString("en-PH", {
-                  weekday: "long",
+                  weekday: "short",
                   month: "short",
                   day: "numeric",
                   year: "numeric",
@@ -479,7 +479,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs shadow-sm sm:hidden">
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs shadow-xs sm:hidden">
             <span className="font-medium text-slate-500">
               {new Date().toLocaleDateString("en-PH", {
                 weekday: "short",
@@ -507,20 +507,19 @@ export default function Dashboard() {
         {!isAdmin && (
           <section
             aria-labelledby="attendance-heading"
-            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
           >
-            <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-1">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6 sm:py-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2
                     id="attendance-heading"
-                    className="text-base font-bold text-slate-950"
+                    className="text-sm sm:text-base font-bold text-slate-900"
                   >
                     Today's Attendance
                   </h2>
-
-                  <p className="mt-0.5 text-sm text-slate-500">
-                    Record your attendance for today's shift.
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Secure time-in and time-out logging for your current shift.
                   </p>
                 </div>
 
@@ -530,7 +529,7 @@ export default function Dashboard() {
                     onClick={() => refreshDashboardData(true)}
                     disabled={isLoadingMetrics || isRefreshing}
                     aria-label="Refresh attendance data"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                   >
                     <RefreshCw
                       size={15}
@@ -539,26 +538,26 @@ export default function Dashboard() {
                   </button>
 
                   {isLoadingMetrics ? (
-                    <SkeletonBlock className="h-7 w-36 rounded-full" />
+                    <SkeletonBlock className="h-7 w-32 rounded-full" />
                   ) : metricsError ? (
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700">
-                      <AlertCircle size={14} />
-                      Couldn't load status
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 border border-rose-200/60">
+                      <AlertCircle size={13} />
+                      Connection error
                     </div>
                   ) : metrics!.hasClockedOutToday ? (
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                      <CheckCircle2 size={14} />
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200/60">
+                      <CheckCircle2 size={13} />
                       Shift completed
                     </div>
                   ) : metrics!.hasClockedInToday ? (
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-(--brand-light)/30 px-3 py-1.5 text-xs font-semibold text-slate-900">
-                      <Clock3 size={14} />
-                      Currently clocked in
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 border border-amber-200/60">
+                      <Clock3 size={13} />
+                      Clocked in
                     </div>
                   ) : (
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-                      <CircleHelp size={14} />
-                      Not clocked in
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 border border-slate-200">
+                      <CircleHelp size={13} />
+                      Not started
                     </div>
                   )}
                 </div>
@@ -567,37 +566,37 @@ export default function Dashboard() {
 
             {metricsError ? (
               <div className="flex flex-col items-center gap-3 px-5 py-12 text-center sm:px-7">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-                  <AlertCircle size={20} />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-100">
+                  <AlertCircle size={22} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    We couldn't load today's attendance
+                  <p className="text-sm font-bold text-slate-900">
+                    We couldn't load your attendance records
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Check your connection and try again.
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Please check your network connection and try again.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => refreshDashboardData()}
-                  className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-(--primary) px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-(--primary-hover) cursor-pointer"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-(--primary) px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-(--primary-hover) cursor-pointer shadow-xs active:scale-[0.98]"
                 >
-                  <RefreshCw size={13} />
+                  <RefreshCw size={14} />
                   Try again
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12">
-                <div className="border-b border-slate-100 p-5 sm:p-7 lg:col-span-7 lg:border-b-0 lg:border-r">
-                  <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Attendance actions
+                <div className="border-b border-slate-100 p-5 sm:p-6 lg:col-span-7 lg:border-b-0 lg:border-r">
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Shift Action Controls
                   </p>
 
                   {isLoadingMetrics ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <SkeletonBlock className="h-32 rounded-xl" />
-                      <SkeletonBlock className="h-32 rounded-xl" />
+                      <SkeletonBlock className="h-32" />
+                      <SkeletonBlock className="h-32" />
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -612,8 +611,8 @@ export default function Dashboard() {
                         }
                         className={`
                           group relative flex min-h-32 flex-col justify-between
-                          rounded-xl border p-5 text-left
-                          transition-all duration-200
+                          rounded-2xl border p-5 text-left
+                          transition-all duration-150
                           focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2
                           ${
                             timeInDisabled
@@ -625,11 +624,11 @@ export default function Dashboard() {
                         <div className="flex items-start justify-between">
                           <span
                             className={`
-                              flex h-10 w-10 items-center justify-center rounded-lg font-bold
+                              flex h-10 w-10 items-center justify-center rounded-xl font-bold
                               ${
                                 timeInDisabled
                                   ? "bg-slate-200 text-slate-400"
-                                  : "bg-white/20 text-slate-950"
+                                  : "bg-white/30 text-slate-950"
                               }
                             `}
                           >
@@ -646,17 +645,16 @@ export default function Dashboard() {
 
                         <div>
                           <p className="text-base font-bold">Time IN</p>
-
                           <p
-                            className={`mt-1 text-xs font-semibold ${
+                            className={`mt-0.5 text-xs font-semibold ${
                               timeInDisabled
                                 ? "text-slate-400"
-                                : "text-slate-900/80"
+                                : "text-slate-950/80"
                             }`}
                           >
                             {metrics!.hasClockedInToday
-                              ? "Already recorded today"
-                              : "Start your workday"}
+                              ? "Recorded for today"
+                              : "Clock in to begin shift"}
                           </p>
                         </div>
                       </button>
@@ -674,20 +672,20 @@ export default function Dashboard() {
                         }
                         className={`
                           group relative flex min-h-32 flex-col justify-between
-                          rounded-xl border p-5 text-left
-                          transition-all duration-200
+                          rounded-2xl border p-5 text-left
+                          transition-all duration-150
                           focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2
                           ${
                             timeOutDisabled
                               ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                              : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-(--primary) hover:bg-amber-50/20 hover:shadow-sm active:scale-[0.99]"
+                              : "cursor-pointer border-slate-300 bg-white text-slate-900 hover:border-(--primary) hover:bg-slate-50/60 hover:shadow-sm active:scale-[0.99]"
                           }
                         `}
                       >
                         <div className="flex items-start justify-between">
                           <span
                             className={`
-                              flex h-10 w-10 items-center justify-center rounded-lg
+                              flex h-10 w-10 items-center justify-center rounded-xl
                               ${
                                 timeOutDisabled
                                   ? "bg-slate-200 text-slate-400"
@@ -708,60 +706,55 @@ export default function Dashboard() {
 
                         <div>
                           <p className="text-base font-bold">Time OUT</p>
-
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-0.5 text-xs text-slate-500">
                             {metrics!.hasClockedOutToday
-                              ? "Already recorded today"
+                              ? "Recorded for today"
                               : !metrics!.hasClockedInToday
-                                ? "Available after Time IN"
-                                : "End your workday"}
+                                ? "Requires active Time IN"
+                                : "Clock out to end shift"}
                           </p>
                         </div>
                       </button>
                     </div>
                   )}
 
-                  <div className="mt-4 flex gap-3 rounded-lg border border-(--brand-light)/40 bg-amber-50/30 p-3.5">
+                  <div className="mt-4 flex gap-3 rounded-xl border border-amber-200/60 bg-amber-50/40 p-3.5">
                     <CircleHelp
                       size={17}
                       className="mt-0.5 shrink-0 text-amber-700"
                     />
-
-                    <p className="text-xs leading-5 text-slate-600">
+                    <p className="text-xs leading-relaxed text-slate-600">
                       <span className="font-semibold text-slate-800">
-                        Payroll record:
+                        Attendance Policy Notice:
                       </span>{" "}
-                      Your first Time IN of the day is used for payroll
-                      computation. Once recorded, Time IN is disabled to prevent
-                      duplicate entries.
+                      Your first registered Time IN of the day establishes your
+                      official shift log. Subsequent time-ins are locked to
+                      ensure precise payroll calculation.
                     </p>
                   </div>
                 </div>
 
-                <div className="p-5 sm:p-7 lg:col-span-5">
-                  <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Today's record
+                <div className="p-5 sm:p-6 lg:col-span-5 bg-slate-50/30">
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Logged Timestamps
                   </p>
 
                   {isLoadingMetrics ? (
                     <div className="space-y-3">
-                      <SkeletonBlock className="h-17 rounded-xl" />
-                      <SkeletonBlock className="h-17 rounded-xl" />
-                      <SkeletonBlock className="h-17 rounded-xl" />
+                      <SkeletonBlock className="h-16" />
+                      <SkeletonBlock className="h-16" />
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
-                            <LogIn size={17} />
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                            <LogIn size={16} />
                           </div>
-
                           <div>
-                            <p className="text-xs font-medium text-slate-500">
+                            <p className="text-[11px] font-semibold text-slate-400 uppercase">
                               Time IN
                             </p>
-
                             <p className="text-sm font-bold text-slate-900">
                               {renderFormattedTime(metrics!.lastTimeIn)}
                             </p>
@@ -770,23 +763,21 @@ export default function Dashboard() {
 
                         {metrics!.hasClockedInToday && (
                           <CheckCircle2
-                            size={17}
+                            size={16}
                             className="text-emerald-600"
                           />
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm">
-                            <LogOut size={17} />
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                            <LogOut size={16} />
                           </div>
-
                           <div>
-                            <p className="text-xs font-medium text-slate-500">
+                            <p className="text-[11px] font-semibold text-slate-400 uppercase">
                               Time OUT
                             </p>
-
                             <p className="text-sm font-bold text-slate-900">
                               {renderFormattedTime(metrics!.lastTimeOut)}
                             </p>
@@ -795,7 +786,7 @@ export default function Dashboard() {
 
                         {metrics!.hasClockedOutToday && (
                           <CheckCircle2
-                            size={17}
+                            size={16}
                             className="text-emerald-600"
                           />
                         )}
@@ -810,39 +801,34 @@ export default function Dashboard() {
 
         {/* QUICK ACCESS MODULES */}
         <section className="mt-8">
-          <div className="mb-4 flex items-end justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-950">
-                Quick Access
-              </h2>
-
-              <p className="mt-0.5 text-sm text-slate-500">
-                Frequently used employee modules.
-              </p>
-            </div>
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-slate-900">
+              Quick Access Modules
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Direct links to core time, attendance, and leave self-service
+              pages.
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <button
               type="button"
               onClick={() => navigate("/timesheet")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
+              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
-                <Clock3 size={20} />
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-100">
+                <Clock3 size={19} />
               </div>
-
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Timesheet</p>
-
-                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
-                    View and manage attendance.
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    Review logs & hours.
                   </p>
                 </div>
-
                 <ChevronRight
-                  size={17}
+                  size={16}
                   className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
@@ -851,23 +837,20 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/leaves")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
+              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
-                <CalendarDays size={20} />
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-100">
+                <CalendarDays size={19} />
               </div>
-
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Leaves</p>
-
-                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
-                    Request and track leave.
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    File & track leave requests.
                   </p>
                 </div>
-
                 <ChevronRight
-                  size={17}
+                  size={16}
                   className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
@@ -876,23 +859,20 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/overtime")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
+              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
-                <FileText size={20} />
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-100">
+                <FileText size={19} />
               </div>
-
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">Overtime</p>
-
-                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
-                    Submit and monitor overtime.
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    Submit overtime applications.
                   </p>
                 </div>
-
                 <ChevronRight
-                  size={17}
+                  size={16}
                   className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
@@ -901,23 +881,20 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate("/history")}
-              className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
+              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:border-(--primary) hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 sm:p-5 cursor-pointer"
             >
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-900 sm:mb-8">
-                <History size={20} />
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-100">
+                <History size={19} />
               </div>
-
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">History</p>
-
-                  <p className="mt-1 hidden text-xs text-slate-500 sm:block">
-                    Review previous records.
+                  <p className="mt-0.5 hidden text-xs text-slate-500 sm:block">
+                    Audit past attendance logs.
                   </p>
                 </div>
-
                 <ChevronRight
-                  size={17}
+                  size={16}
                   className="hidden shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block"
                 />
               </div>
@@ -927,70 +904,82 @@ export default function Dashboard() {
 
         {/* THIS PERIOD SNAPSHOT */}
         {!isAdmin && !metricsError && (
-          <section className="mt-5">
-            <div className="mb-3 flex items-end justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-950">
-                  This Period
-                </h2>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Hours logged and estimated payout for the current cutoff.
-                </p>
-              </div>
+          <section className="mt-6">
+            <div className="mb-3">
+              <h2 className="text-base font-bold text-slate-900">
+                Current Pay Period Summary
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Aggregated hours and estimated compensation for the ongoing
+                cutoff cycle.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {isLoadingMetrics ? (
                 <>
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                  <SkeletonBlock className="h-26 rounded-xl" />
-                  <SkeletonBlock className="h-26 rounded-xl" />
+                  <SkeletonBlock className="h-24" />
+                  <SkeletonBlock className="h-24" />
+                  <SkeletonBlock className="h-24" />
+                  <SkeletonBlock className="h-24" />
                 </>
               ) : (
                 <>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      <Timer size={18} />
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <Timer size={17} />
                     </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {metrics!.regularHours.toFixed(1)}
+                    <p className="text-lg font-bold text-slate-900 sm:text-xl font-mono">
+                      {metrics!.regularHours.toFixed(1)}{" "}
+                      <span className="text-xs font-semibold text-slate-400">
+                        hrs
+                      </span>
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs font-medium text-slate-500">
                       Regular hours
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      <TrendingUp size={18} />
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <TrendingUp size={17} />
                     </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {metrics!.overtimeHours.toFixed(1)}
+                    <p className="text-lg font-bold text-slate-900 sm:text-xl font-mono">
+                      {metrics!.overtimeHours.toFixed(1)}{" "}
+                      <span className="text-xs font-semibold text-slate-400">
+                        hrs
+                      </span>
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs font-medium text-slate-500">
                       Overtime hours
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                      <Clock3 size={18} />
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <Clock3 size={17} />
                     </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
-                      {metrics!.totalHours.toFixed(1)}
+                    <p className="text-lg font-bold text-slate-900 sm:text-xl font-mono">
+                      {metrics!.totalHours.toFixed(1)}{" "}
+                      <span className="text-xs font-semibold text-slate-400">
+                        hrs
+                      </span>
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">Total hours</p>
+                    <p className="mt-0.5 text-xs font-medium text-slate-500">
+                      Total accumulated
+                    </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-(--brand-light)/30 text-slate-950">
-                      <Wallet size={18} />
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-100">
+                      <Wallet size={17} />
                     </div>
-                    <p className="text-lg font-bold text-slate-950 sm:text-xl">
+                    <p className="text-lg font-bold text-slate-900 sm:text-xl font-mono">
                       {formatCurrency(metrics!.estimatedPayout)}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">Est. payout</p>
+                    <p className="mt-0.5 text-xs font-medium text-slate-500">
+                      Estimated payout
+                    </p>
                   </div>
                 </>
               )}
@@ -1000,42 +989,41 @@ export default function Dashboard() {
 
         {/* MISSED RECORDS & PAYROLL CUTOFF */}
         {!isAdmin && (
-          <section className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             {isLoadingMetrics ? (
-              <SkeletonBlock className="h-21 rounded-xl" />
+              <SkeletonBlock className="h-20" />
             ) : (
               <button
                 type="button"
                 onClick={() => navigate("/timesheet")}
-                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-(--primary) hover:shadow-md focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
+                className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-xs transition hover:border-(--primary) hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-(--primary) focus:ring-offset-2 cursor-pointer"
               >
                 <div className="flex items-center gap-4">
                   <div
                     className={`
-                      flex h-11 w-11 shrink-0 items-center justify-center rounded-xl
+                      flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border
                       ${
                         (metrics?.missedRecordsCount ?? 0) > 0
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-emerald-50 text-emerald-700"
+                          ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                       }
                     `}
                   >
                     {(metrics?.missedRecordsCount ?? 0) > 0 ? (
-                      <AlertCircle size={21} />
+                      <AlertCircle size={20} />
                     ) : (
-                      <CheckCircle2 size={21} />
+                      <CheckCircle2 size={20} />
                     )}
                   </div>
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-bold text-slate-900">
                         Missed Time Records
                       </p>
-
                       <span
                         className={`
-                          rounded-full px-2 py-0.5 text-xs font-bold
+                          rounded-full px-2 py-0.5 text-[11px] font-bold
                           ${
                             (metrics?.missedRecordsCount ?? 0) > 0
                               ? "bg-amber-100 text-amber-800"
@@ -1046,11 +1034,10 @@ export default function Dashboard() {
                         {metrics?.missedRecordsCount ?? 0}
                       </span>
                     </div>
-
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-slate-500">
                       {(metrics?.missedRecordsCount ?? 0) > 0
-                        ? "Days without a recorded Time IN."
-                        : "No missed attendance records."}
+                        ? "Days requiring attendance adjustment."
+                        : "All attendance records complete."}
                     </p>
                   </div>
                 </div>
@@ -1062,30 +1049,27 @@ export default function Dashboard() {
               </button>
             )}
 
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
               <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--brand-light)/30 text-slate-950">
-                  <CalendarDays size={21} />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-800 border border-amber-100">
+                  <CalendarDays size={20} />
                 </div>
-
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    Next Payroll Cut-off
+                  <p className="text-sm font-bold text-slate-900">
+                    Next Payroll Cutoff
                   </p>
-
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500">
                     {formatCutoffDate(payrollCutoff)}
                   </p>
                 </div>
               </div>
 
               <div className="text-right">
-                <p className="text-xl font-bold text-slate-950">
+                <p className="text-xl font-bold text-slate-900 font-mono">
                   {daysUntilCutoff}
                 </p>
-
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  {daysUntilCutoff === 1 ? "day" : "days"} left
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {daysUntilCutoff === 1 ? "day left" : "days left"}
                 </p>
               </div>
             </div>

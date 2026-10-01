@@ -1,19 +1,20 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Clock,
-  PlusCircle,
-  CheckCircle,
+  Plus,
+  Check,
   X,
   Trash2,
   LogIn,
   LogOut,
   AlertCircle,
-  CheckCircle2,
   UserCheck,
   Download,
   Loader2,
-  XCircle,
   ChevronDown,
+  CalendarX2,
+  Inbox,
+  RotateCw,
 } from "lucide-react";
 import api from "../services/api";
 import ConfirmModal from "../components/ConfirmModal";
@@ -21,11 +22,24 @@ import Toast from "../components/Toast";
 import LocationCell from "../components/timesheet/LocationCell";
 import ManualModal from "../components/timesheet/ManualModal";
 import PaginationBar from "../components/timesheet/PaginationBar";
+import { FOCUS, ROW_BASE } from "../utils/uiConstants";
+import {
+  PersonCell,
+  SkeletonRows,
+  EmptyState,
+  Chip,
+  StatusBadge,
+} from "../components/ListUI";
+
+interface Person {
+  firstName: string;
+  lastName: string;
+}
 
 interface AttendanceRequestItem {
   id: number;
   employeeId: number;
-  employee?: { firstName: string; lastName: string };
+  employee?: Person;
   type: string;
   targetDate: string;
   status: string;
@@ -35,7 +49,7 @@ interface AttendanceRequestItem {
 interface TimeRecordItem {
   id: number;
   employeeId: number;
-  employee?: { firstName: string; lastName: string };
+  employee?: Person;
   type: string;
   date: string;
   dateCreated: string;
@@ -51,7 +65,123 @@ interface Employee {
   isAdmin?: boolean;
 }
 
+type StatusFilter = "All" | "Pending" | "Approved" | "Declined";
+
 const ITEMS_PER_PAGE = 15;
+const STATUS_FILTERS: StatusFilter[] = [
+  "All",
+  "Pending",
+  "Approved",
+  "Declined",
+];
+
+/* ---------- layout + style constants (literal strings so Tailwind sees them) ---------- */
+
+// key = `${showEmployee}-${hasActions}`
+const RECORD_GRID: Record<string, string> = {
+  "1-1": "md:grid-cols-[84px_112px_minmax(0,1fr)_minmax(0,1.3fr)_36px]",
+  "1-0": "md:grid-cols-[84px_112px_minmax(0,1fr)_minmax(0,1.3fr)]",
+  "0-1": "md:grid-cols-[84px_112px_minmax(0,1fr)_36px]",
+  "0-0": "md:grid-cols-[84px_112px_minmax(0,1fr)]",
+};
+const REQUEST_GRID_ADMIN =
+  "md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_112px_112px_96px_216px]";
+const REQUEST_GRID_EMPLOYEE =
+  "md:grid-cols-[minmax(0,1fr)_112px_112px_96px_36px]";
+
+/* ---------- date helpers ---------- */
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const toInputDate = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+const fmtTime = (d: Date) =>
+  d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+const fmtDate = (d: Date) =>
+  d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const personName = (p: Person | undefined, id: number) =>
+  p ? `${p.lastName}, ${p.firstName}` : `Employee #${id}`;
+
+const startOfDay = (d: Date) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+function describeDay(d: Date) {
+  const today = startOfDay(new Date());
+  const diff = Math.round(
+    (today.getTime() - startOfDay(d).getTime()) / 86_400_000,
+  );
+  const full = d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+  });
+  if (diff === 0) return { primary: "Today", secondary: full };
+  if (diff === 1) return { primary: "Yesterday", secondary: full };
+  return { primary: full, secondary: "" };
+}
+
+const PRESETS: { label: string; range: () => [string, string] }[] = [
+  {
+    label: "Today",
+    range: () => [toInputDate(new Date()), toInputDate(new Date())],
+  },
+  {
+    label: "Yesterday",
+    range: () => {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      return [toInputDate(y), toInputDate(y)];
+    },
+  },
+  {
+    label: "Last 7 days",
+    range: () => {
+      const s = new Date();
+      s.setDate(s.getDate() - 6);
+      return [toInputDate(s), toInputDate(new Date())];
+    },
+  },
+  {
+    label: "This month",
+    range: () => {
+      const n = new Date();
+      return [
+        toInputDate(new Date(n.getFullYear(), n.getMonth(), 1)),
+        toInputDate(n),
+      ];
+    },
+  },
+];
+
+/* ---------- small presentational pieces ---------- */
+
+function TypeBadge({ type }: { type: string }) {
+  const isIn = type === "IN";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${
+        isIn
+          ? "border-emerald-200/70 bg-emerald-50 text-emerald-700"
+          : "border-amber-200/70 bg-amber-50 text-amber-700"
+      }`}
+    >
+      {isIn ? <LogIn size={13} /> : <LogOut size={13} />}
+      {isIn ? "Time in" : "Time out"}
+    </span>
+  );
+}
+
+/* ---------- page ---------- */
 
 export default function Timesheet() {
   const [activeTab, setActiveTab] = useState<"records" | "requests">("records");
@@ -62,24 +192,28 @@ export default function Timesheet() {
   const [manualDate, setManualDate] = useState("");
   const [manualType, setManualType] = useState("IN");
 
-  // Date range filters replacing single filterDate
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
 
   const [loadingData, setLoadingData] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const [recordsPage, setRecordsPage] = useState<number>(1);
   const [totalRecordsPages, setTotalRecordsPages] = useState<number>(1);
-
   const [requestsPage, setRequestsPage] = useState<number>(1);
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = localStorage.getItem("employeeId") || "";
+  const isAdmin = role === "Admin";
 
+  // Page-level filter. The modal has its own employee state so picking an
+  // employee while adding a record no longer reloads the table behind it.
   const [selectedEmployee, setSelectedEmployee] = useState<string>(
-    role === "Admin" ? "all" : loggedInEmployeeId,
+    isAdmin ? "all" : loggedInEmployeeId,
   );
+  const [modalEmployee, setModalEmployee] = useState<string>("");
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
@@ -101,18 +235,21 @@ export default function Timesheet() {
     type: "success" | "error";
   } | null>(null);
 
-  const showToast = useCallback(
-    (text: string, type: "success" | "error" = "success") => {
-      setToast({ text, type });
-      setTimeout(() => setToast(null), 3500);
-    },
-    [],
-  );
+  const showToast = (text: string, type: "success" | "error" = "success") =>
+    setToast({ text, type });
+
+  // Auto-dismiss; a new toast replaces the object, which restarts the timer.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const fetchTimesheetData = useCallback(
     async (targetId: string, start: string, end: string, page: number) => {
       setLoadingData(true);
-      const effectiveId = role === "Admin" ? targetId : loggedInEmployeeId;
+      setLoadError(false);
+      const effectiveId = isAdmin ? targetId : loggedInEmployeeId;
 
       const params = new URLSearchParams();
       params.append("page", page.toString());
@@ -132,6 +269,7 @@ export default function Timesheet() {
       } catch {
         setRecords([]);
         setTotalRecordsPages(1);
+        setLoadError(true);
       }
 
       try {
@@ -147,13 +285,13 @@ export default function Timesheet() {
         setLoadingData(false);
       }
     },
-    [role, loggedInEmployeeId],
+    [isAdmin, loggedInEmployeeId],
   );
 
   useEffect(() => {
     let isMounted = true;
     const initLoad = async () => {
-      if (role === "Admin") {
+      if (isAdmin) {
         try {
           const res = await api.get("/Employees");
           if (!isMounted) return;
@@ -190,7 +328,7 @@ export default function Timesheet() {
       isMounted = false;
     };
   }, [
-    role,
+    isAdmin,
     selectedEmployee,
     startDate,
     endDate,
@@ -199,10 +337,16 @@ export default function Timesheet() {
     fetchTimesheetData,
   ]);
 
+  const reload = () =>
+    fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
+
+  const closeConfirm = () =>
+    setModalConfig((prev) => ({ ...prev, isOpen: false }));
+
   const triggerDeleteRecordModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Delete Time Record",
+      title: "Delete time record",
       message:
         "Are you sure you want to delete this attendance record? This action cannot be undone.",
       confirmText: "Delete",
@@ -210,12 +354,12 @@ export default function Timesheet() {
       onConfirm: async () => {
         try {
           await api.delete(`/TimeRecords/${id}`);
-          showToast("Time record deleted successfully.");
-          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
+          showToast("Time record deleted.");
+          reload();
         } catch {
-          showToast("Failed to delete time record.", "error");
+          showToast("Couldn't delete the time record. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
@@ -224,7 +368,7 @@ export default function Timesheet() {
   const triggerDeleteRequestModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Delete Attendance Request",
+      title: "Delete attendance request",
       message:
         "Are you sure you want to delete this attendance correction request? This action cannot be undone.",
       confirmText: "Delete",
@@ -232,25 +376,33 @@ export default function Timesheet() {
       onConfirm: async () => {
         try {
           await api.delete(`/AttendanceRequests/${id}`);
-          showToast("Attendance request deleted successfully.");
-          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
+          showToast("Attendance request deleted.");
+          reload();
         } catch {
-          showToast("Failed to delete request.", "error");
+          showToast("Couldn't delete the request. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
   };
 
+  const openManualModal = () => {
+    if (isAdmin) {
+      setModalEmployee(
+        selectedEmployee !== "all"
+          ? selectedEmployee
+          : String(employees[0]?.id ?? ""),
+      );
+    }
+    setShowManualModal(true);
+  };
+
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetId =
-      role === "Admin" && selectedEmployee !== "all"
-        ? selectedEmployee
-        : loggedInEmployeeId;
+    const targetId = isAdmin ? modalEmployee : loggedInEmployeeId;
     if (!manualDate || !targetId) {
-      showToast("Please select a specific employee to add a record.", "error");
+      showToast("Choose an employee and a date and time.", "error");
       return;
     }
 
@@ -260,32 +412,32 @@ export default function Timesheet() {
     );
 
     try {
-      if (role === "Admin") {
+      if (isAdmin) {
         await api.post("/TimeRecords/time-in-out", {
           employeeId: Number(targetId),
           type: manualType,
           dateCreated: targetDateTime.toISOString(),
         });
-        showToast("Attendance record added successfully!");
+        showToast("Attendance record added.");
       } else {
         await api.post("/AttendanceRequests", {
           employeeId: Number(targetId),
           type: manualType,
           targetDate: targetDateTime.toISOString(),
         });
-        showToast("Missed attendance request submitted successfully!");
+        showToast("Correction request sent for review.");
       }
       setShowManualModal(false);
       setManualDate("");
-      fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
+      reload();
     } catch (err: unknown) {
       const errorMsg =
         (err as { response?: { data?: string } })?.response?.data ||
-        "Failed to process attendance entry.";
+        "Couldn't save the attendance entry.";
       showToast(
         typeof errorMsg === "string"
           ? errorMsg
-          : "Failed to process attendance entry.",
+          : "Couldn't save the attendance entry.",
         "error",
       );
     }
@@ -294,7 +446,7 @@ export default function Timesheet() {
   const triggerApproveModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Approve Attendance Request",
+      title: "Approve attendance request",
       message:
         "Are you sure you want to approve this missed attendance correction?",
       confirmText: "Approve",
@@ -302,20 +454,20 @@ export default function Timesheet() {
       onConfirm: async () => {
         try {
           await api.put(`/AttendanceRequests/${id}/approve`);
-          showToast("Attendance request approved and logged!");
-          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
+          showToast("Request approved and added to the timesheet.");
+          reload();
         } catch (err: unknown) {
           const errorMsg =
             (err as { response?: { data?: string } })?.response?.data ||
-            "Failed to approve request.";
+            "Couldn't approve the request.";
           showToast(
             typeof errorMsg === "string"
               ? errorMsg
-              : "Failed to approve request.",
+              : "Couldn't approve the request.",
             "error",
           );
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
@@ -324,7 +476,7 @@ export default function Timesheet() {
   const triggerDeclineModal = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Decline Attendance Request",
+      title: "Decline attendance request",
       message:
         "Are you sure you want to decline this missed attendance request?",
       confirmText: "Decline",
@@ -332,27 +484,25 @@ export default function Timesheet() {
       onConfirm: async () => {
         try {
           await api.put(`/AttendanceRequests/${id}/reject`);
-          showToast("Attendance request declined successfully.");
-          fetchTimesheetData(selectedEmployee, startDate, endDate, recordsPage);
+          showToast("Request declined.");
+          reload();
         } catch {
-          showToast("Failed to decline request.", "error");
+          showToast("Couldn't decline the request. Try again.", "error");
         } finally {
-          setModalConfig((prev) => ({ ...prev, isOpen: false }));
+          closeConfirm();
         }
       },
     });
   };
 
+  const exportNeedsEmployee = isAdmin && selectedEmployee === "all";
+
   const handleExportExcel = async () => {
-    const targetExportId =
-      role === "Admin" ? selectedEmployee : loggedInEmployeeId;
-    if (targetExportId === "all") {
-      showToast(
-        "Please select a specific employee to export individual timesheet.",
-        "error",
-      );
+    if (exportNeedsEmployee) {
+      showToast("Choose an employee to export their timesheet.", "error");
       return;
     }
+    const targetExportId = isAdmin ? selectedEmployee : loggedInEmployeeId;
 
     setIsExporting(true);
     try {
@@ -378,655 +528,555 @@ export default function Timesheet() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      showToast("Timesheet exported to .xlsx successfully!");
+      showToast("Timesheet exported.");
     } catch {
-      showToast("Failed to export timesheet.", "error");
+      showToast("Couldn't export the timesheet. Try again.", "error");
     } finally {
       setIsExporting(false);
     }
   };
 
+  /* ----- derived data ----- */
+
   const pendingCount = requests.filter((r) => r.status === "Pending").length;
 
-  const totalRequestsPages = Math.ceil(requests.length / ITEMS_PER_PAGE);
+  const statusCounts: Record<StatusFilter, number> = {
+    All: requests.length,
+    Pending: pendingCount,
+    Approved: requests.filter((r) => r.status === "Approved").length,
+    Declined: requests.filter((r) => r.status === "Declined").length,
+  };
+
+  // Pending first (that's what admins act on), then newest first.
+  const visibleRequests = useMemo(() => {
+    return requests
+      .filter((r) => statusFilter === "All" || r.status === statusFilter)
+      .sort(
+        (a, b) =>
+          Number(b.status === "Pending") - Number(a.status === "Pending") ||
+          new Date(b.dateRequested).getTime() -
+            new Date(a.dateRequested).getTime(),
+      );
+  }, [requests, statusFilter]);
+
+  const totalRequestsPages = Math.ceil(visibleRequests.length / ITEMS_PER_PAGE);
   const paginatedRequests = useMemo(() => {
     const start = (requestsPage - 1) * ITEMS_PER_PAGE;
-    return requests.slice(start, start + ITEMS_PER_PAGE);
-  }, [requests, requestsPage]);
+    return visibleRequests.slice(start, start + ITEMS_PER_PAGE);
+  }, [visibleRequests, requestsPage]);
 
-  const recordsColSpan = role === "Admin" && selectedEmployee === "all" ? 6 : 5;
-  const requestsColSpan = role === "Admin" ? 6 : 5;
+  // Group the current page of logs by calendar day.
+  const recordGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        primary: string;
+        secondary: string;
+        items: TimeRecordItem[];
+      }
+    >();
+    for (const r of records) {
+      const d = new Date(r.dateCreated || r.date);
+      const key = toInputDate(d);
+      if (!groups.has(key)) {
+        groups.set(key, { key, ...describeDay(d), items: [] });
+      }
+      groups.get(key)!.items.push(r);
+    }
+    return [...groups.values()];
+  }, [records]);
+
+  const showEmployeeCol = isAdmin && selectedEmployee === "all";
+  const recordGrid = RECORD_GRID[`${+showEmployeeCol}-${+isAdmin}`];
+  const requestGrid = isAdmin ? REQUEST_GRID_ADMIN : REQUEST_GRID_EMPLOYEE;
+  const hasDateFilter = Boolean(startDate || endDate);
+
+  const clearDates = () => {
+    setStartDate("");
+    setEndDate("");
+    setRecordsPage(1);
+  };
+
+  const scrollToCard = () =>
+    document
+      .getElementById("timesheet-card")
+      ?.scrollIntoView({ block: "start" });
+
+  const changeRecordsPage = (p: number) => {
+    setRecordsPage(p);
+    scrollToCard();
+  };
+  const changeRequestsPage = (p: number) => {
+    setRequestsPage(p);
+    scrollToCard();
+  };
+
+  const dateInput =
+    "h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-800 cursor-pointer focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20";
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <div className="space-y-5">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
-              <Clock size={18} />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                Attendance Timesheet
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Review recorded work logs or file manual corrections for missed
-                shifts.
-              </p>
-            </div>
+    <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      {/* Header */}
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-700">
+            <Clock size={19} />
           </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+              Attendance timesheet
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Review work logs, or file a correction for a missed shift.
+            </p>
+          </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Date Span Range Filter Controls */}
-            <div className="flex items-center gap-1.5 flex-wrap sm:flex-initial">
-              <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
-                  From
-                </span>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <button
+            onClick={handleExportExcel}
+            disabled={isExporting || loadingData}
+            aria-disabled={exportNeedsEmployee}
+            title={
+              exportNeedsEmployee
+                ? "Choose an employee to export their timesheet"
+                : "Download as Excel"
+            }
+            className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer disabled:opacity-50 sm:flex-none ${FOCUS} ${
+              exportNeedsEmployee ? "opacity-60" : ""
+            }`}
+          >
+            {isExporting ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Download size={15} />
+            )}
+            {isExporting ? "Exporting…" : "Export"}
+          </button>
+
+          <button
+            onClick={openManualModal}
+            disabled={loadingData}
+            className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-(--primary) px-4 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-(--primary-hover) cursor-pointer disabled:opacity-50 sm:flex-none ${FOCUS}`}
+          >
+            <Plus size={16} />
+            {isAdmin ? "Add record" : "Request correction"}
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div role="tablist" className="flex gap-6 border-b border-slate-200">
+        {(
+          [
+            { id: "records", label: "Recorded logs" },
+            { id: "requests", label: isAdmin ? "Requests" : "My requests" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => {
+              setActiveTab(tab.id);
+              setRecordsPage(1);
+              setRequestsPage(1);
+            }}
+            className={`-mb-px flex items-center gap-2 border-b-2 pb-3 text-sm font-semibold transition-colors cursor-pointer ${FOCUS} ${
+              activeTab === tab.id
+                ? "border-(--primary) text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            {tab.label}
+            {tab.id === "requests" && pendingCount > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                {pendingCount} pending
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Card */}
+      <section
+        id="timesheet-card"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      >
+        {/* Filters */}
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
+          {isAdmin && employees.length > 0 && (
+            <label className="flex w-full flex-col gap-1.5 sm:w-64">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                <UserCheck size={13} className="text-slate-400" />
+                Employee
+              </span>
+              <span className="relative">
+                <select
+                  value={selectedEmployee}
+                  disabled={loadingData || isExporting}
+                  onChange={(e) => {
+                    setSelectedEmployee(e.target.value);
+                    setRecordsPage(1);
+                    setRequestsPage(1);
+                  }}
+                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-9 text-sm font-medium text-slate-800 focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20 disabled:opacity-60"
+                >
+                  <option value="all">All employees</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={String(emp.id)}>
+                      {emp.lastName}, {emp.firstName}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+              </span>
+            </label>
+          )}
+
+          {activeTab === "records" ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-slate-600">
+                Date range
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {PRESETS.map((p) => {
+                  const [s, e] = p.range();
+                  return (
+                    <Chip
+                      key={p.label}
+                      active={startDate === s && endDate === e}
+                      onClick={() => {
+                        setStartDate(s);
+                        setEndDate(e);
+                        setRecordsPage(1);
+                      }}
+                    >
+                      {p.label}
+                    </Chip>
+                  );
+                })}
+                <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block" />
                 <input
                   type="date"
+                  aria-label="From date"
                   value={startDate}
+                  max={endDate || undefined}
                   onChange={(e) => {
                     setStartDate(e.target.value);
                     setRecordsPage(1);
                   }}
-                  className="text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer bg-transparent"
+                  className={dateInput}
                 />
-              </div>
-
-              <span className="text-slate-400 text-xs font-semibold">to</span>
-
-              <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">
-                  To
-                </span>
+                <span className="text-xs text-slate-400">to</span>
                 <input
                   type="date"
+                  aria-label="To date"
                   value={endDate}
+                  min={startDate || undefined}
                   onChange={(e) => {
                     setEndDate(e.target.value);
                     setRecordsPage(1);
                   }}
-                  className="text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer bg-transparent"
+                  className={dateInput}
                 />
+                {hasDateFilter && (
+                  <button
+                    onClick={clearDates}
+                    className={`flex h-8 items-center gap-1 rounded-full px-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                  >
+                    <X size={13} />
+                    Clear
+                  </button>
+                )}
               </div>
-
-              {(startDate || endDate) && (
-                <button
-                  onClick={() => {
-                    setStartDate("");
-                    setEndDate("");
-                    setRecordsPage(1);
-                  }}
-                  className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl transition-colors cursor-pointer border border-slate-200 shrink-0"
-                  title="Clear Filters"
-                >
-                  <X size={14} />
-                </button>
-              )}
             </div>
-
-            <button
-              onClick={handleExportExcel}
-              disabled={
-                isExporting ||
-                loadingData ||
-                (role === "Admin" && selectedEmployee === "all")
-              }
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50"
-            >
-              {isExporting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Exporting...
-                </>
-              ) : (
-                <>
-                  <Download size={14} />
-                  Export
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
-                if (
-                  role === "Admin" &&
-                  employees.length > 0 &&
-                  selectedEmployee === "all"
-                ) {
-                  setSelectedEmployee(String(employees[0].id));
-                }
-                setShowManualModal(true);
-              }}
-              disabled={loadingData}
-              className="flex items-center gap-1.5 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50"
-            >
-              <PlusCircle size={14} />
-              {role === "Admin" ? "Add Record" : "File Missed"}
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 gap-8 px-2">
-          <button
-            onClick={() => {
-              setActiveTab("records");
-              setRecordsPage(1);
-            }}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-              activeTab === "records"
-                ? "border-(--primary) text-amber-900"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            Recorded Logs
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab("requests");
-              setRequestsPage(1);
-            }}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === "requests"
-                ? "border-(--primary) text-amber-900"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-            }`}
-          >
-            {role === "Admin" ? "Pending Requests" : "My Requests"}
-            {pendingCount > 0 && (
-              <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Workspace Card */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          {role === "Admin" && employees.length > 0 && (
-            <div className="p-5 sm:p-6 border-b border-slate-200 bg-slate-50/50">
-              <div className="max-w-md">
-                <label className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2 flex items-center gap-1.5">
-                  <UserCheck size={13} className="text-slate-400" />
-                  Select Employee
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedEmployee}
-                    disabled={loadingData || isExporting}
-                    onChange={(e) => {
-                      setSelectedEmployee(e.target.value);
-                      setRecordsPage(1);
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-slate-600">Status</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {STATUS_FILTERS.map((s) => (
+                  <Chip
+                    key={s}
+                    active={statusFilter === s}
+                    onClick={() => {
+                      setStatusFilter(s);
                       setRequestsPage(1);
                     }}
-                    className="w-full h-11 appearance-none border border-slate-300 bg-white px-3 pr-10 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/15 cursor-pointer"
                   >
-                    <option value="all">All Employees</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={String(emp.id)}>
-                        {emp.lastName}, {emp.firstName}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                  />
-                </div>
+                    {s}
+                    <span className="ml-1.5 font-normal text-slate-400">
+                      {statusCounts[s]}
+                    </span>
+                  </Chip>
+                ))}
               </div>
             </div>
           )}
-
-          {/* Desktop Table View */}
-          {activeTab === "records" ? (
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                    {role === "Admin" && selectedEmployee === "all" && (
-                      <th className="py-3.5 px-6">Employee</th>
-                    )}
-                    <th className="py-3.5 px-6">Log Type</th>
-                    <th className="py-3.5 px-6">Date Logged</th>
-                    <th className="py-3.5 px-6">Location</th>
-                    <th className="py-3.5 px-6 text-right">Timestamp</th>
-                    {role === "Admin" && (
-                      <th className="py-3.5 px-6 text-right">Actions</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {loadingData ? (
-                    <tr>
-                      <td
-                        colSpan={recordsColSpan}
-                        className="py-12 text-center text-slate-400"
-                      >
-                        <Loader2
-                          size={22}
-                          className="animate-spin text-amber-600 mx-auto mb-2"
-                        />
-                        <p className="text-xs font-semibold text-slate-500">
-                          Loading time records...
-                        </p>
-                      </td>
-                    </tr>
-                  ) : records.length > 0 ? (
-                    records.map((record) => (
-                      <tr
-                        key={record.id}
-                        className="hover:bg-slate-50/60 transition-colors"
-                      >
-                        {role === "Admin" && selectedEmployee === "all" && (
-                          <td className="py-4 px-6 font-semibold text-slate-900 text-xs">
-                            {record.employee
-                              ? `${record.employee.lastName}, ${record.employee.firstName}`
-                              : `ID: ${record.employeeId}`}
-                          </td>
-                        )}
-                        <td className="py-4 px-6">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                              record.type === "IN"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                                : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                            }`}
-                          >
-                            {record.type === "IN" ? (
-                              <LogIn size={13} className="text-emerald-600" />
-                            ) : (
-                              <LogOut size={13} className="text-amber-600" />
-                            )}
-                            Time {record.type}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-slate-600 text-xs font-medium">
-                          {new Date(
-                            record.dateCreated || record.date,
-                          ).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </td>
-                        <td className="py-4 px-6">
-                          <LocationCell
-                            lat={record.latitude}
-                            lon={record.longitude}
-                          />
-                        </td>
-                        <td className="py-4 px-6 text-right font-mono text-xs font-bold text-slate-900">
-                          {new Date(
-                            record.dateCreated || record.date,
-                          ).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </td>
-                        {role === "Admin" && (
-                          <td className="py-4 px-6 text-right">
-                            <button
-                              onClick={() =>
-                                triggerDeleteRecordModal(record.id)
-                              }
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={recordsColSpan}
-                        className="py-12 text-center text-slate-400 text-xs"
-                      >
-                        No attendance records found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                    {role === "Admin" && (
-                      <th className="py-3.5 px-6">Employee</th>
-                    )}
-                    <th className="py-3.5 px-6">Log Type</th>
-                    <th className="py-3.5 px-6">Time Requested</th>
-                    <th className="py-3.5 px-6">Status</th>
-                    <th className="py-3.5 px-6">Date Filed</th>
-                    <th className="py-3.5 px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {loadingData ? (
-                    <tr>
-                      <td
-                        colSpan={requestsColSpan}
-                        className="py-12 text-center text-slate-400"
-                      >
-                        <Loader2
-                          size={22}
-                          className="animate-spin text-amber-600 mx-auto mb-2"
-                        />
-                        <p className="text-xs font-semibold text-slate-500">
-                          Loading attendance requests...
-                        </p>
-                      </td>
-                    </tr>
-                  ) : paginatedRequests.length > 0 ? (
-                    paginatedRequests.map((req) => (
-                      <tr
-                        key={req.id}
-                        className="hover:bg-slate-50/60 transition-colors"
-                      >
-                        {role === "Admin" && (
-                          <td className="py-4 px-6 font-semibold text-slate-900 text-xs">
-                            {req.employee
-                              ? `${req.employee.lastName}, ${req.employee.firstName}`
-                              : `ID: ${req.employeeId}`}
-                          </td>
-                        )}
-                        <td className="py-4 px-6">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                              req.type === "IN"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                                : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                            }`}
-                          >
-                            {req.type === "IN" ? (
-                              <LogIn size={13} className="text-emerald-600" />
-                            ) : (
-                              <LogOut size={13} className="text-amber-600" />
-                            )}
-                            Time {req.type}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 font-mono text-xs font-bold text-slate-900">
-                          {new Date(req.targetDate).toLocaleString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </td>
-                        <td className="py-4 px-6">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                              req.status === "Approved"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                                : req.status === "Declined"
-                                  ? "bg-rose-50 text-rose-700 border border-rose-200/60"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200/60"
-                            }`}
-                          >
-                            {req.status === "Approved" ? (
-                              <CheckCircle2 size={13} />
-                            ) : req.status === "Declined" ? (
-                              <XCircle size={13} />
-                            ) : (
-                              <AlertCircle size={13} />
-                            )}
-                            {req.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-slate-500 text-xs">
-                          {new Date(req.dateRequested).toLocaleDateString(
-                            "en-US",
-                            {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            },
-                          )}
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {role === "Admin" && req.status === "Pending" && (
-                              <>
-                                <button
-                                  onClick={() => triggerApproveModal(req.id)}
-                                  className="text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-emerald-200/60"
-                                >
-                                  <CheckCircle size={14} /> Approve
-                                </button>
-                                <button
-                                  onClick={() => triggerDeclineModal(req.id)}
-                                  className="text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-rose-200/60"
-                                >
-                                  <X size={14} /> Decline
-                                </button>
-                              </>
-                            )}
-                            <button
-                              onClick={() => triggerDeleteRequestModal(req.id)}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={requestsColSpan}
-                        className="py-12 text-center text-slate-400 text-xs"
-                      >
-                        No attendance requests found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Mobile Card View */}
-          {activeTab === "records" ? (
-            <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
-              {loadingData ? (
-                <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400">
-                  <Loader2
-                    size={22}
-                    className="animate-spin text-amber-600 mx-auto"
-                  />
-                </div>
-              ) : records.length > 0 ? (
-                records.map((record) => (
-                  <div
-                    key={record.id}
-                    className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3"
-                  >
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                      <div>
-                        {role === "Admin" && selectedEmployee === "all" && (
-                          <h3 className="font-bold text-slate-900 text-xs">
-                            {record.employee
-                              ? `${record.employee.lastName}, ${record.employee.firstName}`
-                              : `ID: ${record.employeeId}`}
-                          </h3>
-                        )}
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Date:{" "}
-                          {new Date(
-                            record.dateCreated || record.date,
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-                      {role === "Admin" && (
-                        <button
-                          onClick={() => triggerDeleteRecordModal(record.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                    <LocationCell
-                      lat={record.latitude}
-                      lon={record.longitude}
-                    />
-                    <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-50">
-                      <span className="font-mono font-bold text-slate-700">
-                        {new Date(
-                          record.dateCreated || record.date,
-                        ).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: true,
-                        })}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                          record.type === "IN"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700"
-                        }`}
-                      >
-                        Time {record.type}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="bg-slate-50 p-8 rounded-lg text-center text-slate-400 text-xs">
-                  No records found.
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
-              {loadingData ? (
-                <div className="bg-slate-50 p-8 rounded-lg text-center text-slate-400">
-                  <Loader2
-                    size={22}
-                    className="animate-spin text-amber-600 mx-auto"
-                  />
-                </div>
-              ) : paginatedRequests.length > 0 ? (
-                paginatedRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white p-4 rounded-lg border border-slate-200 shadow-xs space-y-3"
-                  >
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                      <div>
-                        {role === "Admin" && (
-                          <h3 className="font-bold text-slate-900 text-xs">
-                            {req.employee
-                              ? `${req.employee.lastName}, ${req.employee.firstName}`
-                              : `ID: ${req.employeeId}`}
-                          </h3>
-                        )}
-                        <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
-                          Requested Time:{" "}
-                          <span className="font-bold text-slate-800">
-                            {new Date(req.targetDate).toLocaleString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            })}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {role === "Admin" && req.status === "Pending" && (
-                          <>
-                            <button
-                              onClick={() => triggerApproveModal(req.id)}
-                              className="p-1.5 text-emerald-600 rounded-lg"
-                            >
-                              <CheckCircle size={16} />
-                            </button>
-                            <button
-                              onClick={() => triggerDeclineModal(req.id)}
-                              className="p-1.5 text-rose-600 rounded-lg"
-                            >
-                              <X size={16} />
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => triggerDeleteRequestModal(req.id)}
-                          className="p-1.5 text-slate-400 rounded-lg"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-700">
-                        Time {req.type}
-                      </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${
-                          req.status === "Approved"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : req.status === "Declined"
-                              ? "bg-rose-50 text-rose-700"
-                              : "bg-amber-50 text-amber-700"
-                        }`}
-                      >
-                        {req.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="bg-slate-50 p-8 rounded-lg text-center text-slate-400 text-xs">
-                  No requests found.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Pagination */}
-          {activeTab === "records" && (
-            <PaginationBar
-              page={recordsPage}
-              totalPages={totalRecordsPages}
-              onPageChange={setRecordsPage}
-            />
-          )}
-          {activeTab === "requests" && (
-            <PaginationBar
-              page={requestsPage}
-              totalPages={totalRequestsPages}
-              onPageChange={setRequestsPage}
-            />
-          )}
         </div>
-      </div>
+
+        {/* Body */}
+        {loadingData ? (
+          <SkeletonRows />
+        ) : activeTab === "records" ? (
+          loadError ? (
+            <EmptyState
+              icon={<AlertCircle size={20} />}
+              title="Couldn't load the time records"
+              text="Check your connection and try again."
+              action={
+                <button
+                  onClick={reload}
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                >
+                  <RotateCw size={13} />
+                  Try again
+                </button>
+              }
+            />
+          ) : records.length === 0 ? (
+            <EmptyState
+              icon={<CalendarX2 size={20} />}
+              title={
+                hasDateFilter
+                  ? "No logs in this date range"
+                  : "No attendance logs yet"
+              }
+              text={
+                hasDateFilter
+                  ? "Try a wider range, or clear the dates to see everything."
+                  : "Logs appear here as soon as someone clocks in or out."
+              }
+              action={
+                hasDateFilter && (
+                  <button
+                    onClick={clearDates}
+                    className={`inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                  >
+                    Clear dates
+                  </button>
+                )
+              }
+            />
+          ) : (
+            <>
+              <div
+                className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${recordGrid}`}
+              >
+                <span>Time</span>
+                <span>Type</span>
+                {showEmployeeCol && <span>Employee</span>}
+                <span>Location</span>
+                {isAdmin && <span className="sr-only">Actions</span>}
+              </div>
+
+              <div className="divide-y divide-slate-200">
+                {recordGroups.map((group) => (
+                  <div key={group.key}>
+                    <div className="flex items-baseline gap-2 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs">
+                      <h3 className="font-semibold text-slate-900">
+                        {group.primary}
+                      </h3>
+                      {group.secondary && (
+                        <span className="text-slate-500">
+                          {group.secondary}
+                        </span>
+                      )}
+                      <span className="ml-auto text-slate-400">
+                        {group.items.length}{" "}
+                        {group.items.length === 1 ? "log" : "logs"}
+                      </span>
+                    </div>
+
+                    <ul className="divide-y divide-slate-100">
+                      {group.items.map((record) => {
+                        const d = new Date(record.dateCreated || record.date);
+                        return (
+                          <li
+                            key={record.id}
+                            className={`group px-5 py-3 transition-colors hover:bg-slate-50/70 ${ROW_BASE} ${recordGrid}`}
+                          >
+                            <span className="order-2 w-21 text-sm font-semibold tabular-nums text-slate-900 md:order-0">
+                              {fmtTime(d)}
+                            </span>
+                            <div className="order-3 md:order-0">
+                              <TypeBadge type={record.type} />
+                            </div>
+                            {showEmployeeCol && (
+                              <div className="order-1 w-full min-w-0 md:order-0 md:w-auto">
+                                <PersonCell
+                                  name={personName(
+                                    record.employee,
+                                    record.employeeId,
+                                  )}
+                                />
+                              </div>
+                            )}
+                            <div className="order-5 w-full min-w-0 md:order-0 md:w-auto">
+                              <LocationCell
+                                lat={record.latitude}
+                                lon={record.longitude}
+                              />
+                            </div>
+                            {isAdmin && (
+                              <div className="order-4 ml-auto md:order-0 md:ml-0 md:justify-self-end">
+                                <button
+                                  onClick={() =>
+                                    triggerDeleteRecordModal(record.id)
+                                  }
+                                  aria-label={`Delete ${record.type === "IN" ? "time in" : "time out"} log at ${fmtTime(d)}`}
+                                  className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        ) : paginatedRequests.length === 0 ? (
+          <EmptyState
+            icon={<Inbox size={20} />}
+            title={
+              statusFilter === "All"
+                ? "No attendance requests"
+                : `No ${statusFilter.toLowerCase()} requests`
+            }
+            text={
+              isAdmin
+                ? "Correction requests from employees will show up here for review."
+                : "When you request a correction for a missed shift, you can track it here."
+            }
+            action={
+              statusFilter !== "All" && (
+                <button
+                  onClick={() => setStatusFilter("All")}
+                  className={`inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                >
+                  Show all requests
+                </button>
+              )
+            }
+          />
+        ) : (
+          <>
+            <div
+              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${requestGrid}`}
+            >
+              {isAdmin && <span>Employee</span>}
+              <span>Requested for</span>
+              <span>Type</span>
+              <span>Status</span>
+              <span>Filed</span>
+              <span className="sr-only">Actions</span>
+            </div>
+
+            <ul className="divide-y divide-slate-100">
+              {paginatedRequests.map((req) => {
+                const target = new Date(req.targetDate);
+                const isPending = req.status === "Pending";
+                return (
+                  <li
+                    key={req.id}
+                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 ${ROW_BASE} ${requestGrid}`}
+                  >
+                    {isPending && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
+                      />
+                    )}
+                    {isAdmin && (
+                      <div className="w-full min-w-0 md:w-auto">
+                        <PersonCell
+                          name={personName(req.employee, req.employeeId)}
+                        />
+                      </div>
+                    )}
+                    <div className="leading-tight">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {fmtDate(target)}
+                      </p>
+                      <p className="mt-0.5 text-xs tabular-nums text-slate-500">
+                        {fmtTime(target)}
+                      </p>
+                    </div>
+                    <TypeBadge type={req.type} />
+                    <StatusBadge status={req.status} />
+                    <span className="text-xs text-slate-500">
+                      <span className="md:hidden">Filed </span>
+                      {fmtDate(new Date(req.dateRequested))}
+                    </span>
+                    <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
+                      {isAdmin && isPending && (
+                        <>
+                          <button
+                            onClick={() => triggerApproveModal(req.id)}
+                            className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
+                          >
+                            <Check size={14} />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => triggerDeclineModal(req.id)}
+                            className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
+                          >
+                            <X size={14} />
+                            Decline
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => triggerDeleteRequestModal(req.id)}
+                        aria-label="Delete request"
+                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        {activeTab === "records" && !loadingData && (
+          <PaginationBar
+            page={recordsPage}
+            totalPages={totalRecordsPages}
+            onPageChange={changeRecordsPage}
+          />
+        )}
+        {activeTab === "requests" && !loadingData && (
+          <PaginationBar
+            page={requestsPage}
+            totalPages={totalRequestsPages}
+            onPageChange={changeRequestsPage}
+          />
+        )}
+      </section>
 
       <ManualModal
         isOpen={showManualModal}
         role={role}
         employees={employees}
-        selectedEmployee={selectedEmployee}
+        selectedEmployee={modalEmployee}
         manualDate={manualDate}
         manualType={manualType}
         onClose={() => setShowManualModal(false)}
         onSubmit={handleManualSubmit}
-        onEmployeeChange={setSelectedEmployee}
+        onEmployeeChange={setModalEmployee}
         onTypeChange={setManualType}
         onDateChange={setManualDate}
       />
@@ -1038,7 +1088,7 @@ export default function Timesheet() {
         confirmText={modalConfig.confirmText}
         type={modalConfig.type}
         onConfirm={modalConfig.onConfirm}
-        onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onClose={closeConfirm}
       />
 
       <Toast

@@ -8,61 +8,34 @@ import {
   X,
   Search,
   Users,
-  Loader2,
   Eye,
   Edit3,
-  ChevronLeft,
-  ChevronRight,
   RotateCcw,
+  CalendarX2,
+  RotateCw,
+  AlertCircle,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
 import EmployeeFormFields from "../components/employee/EmployeeFormFields";
 import ViewEmployeeModal from "../components/employee/ViewEmployeeModal";
+import PaginationBar from "../components/timesheet/PaginationBar";
+import { FOCUS, ROW_BASE } from "../utils/uiConstants";
+import {
+  PersonCell,
+  SkeletonRows,
+  EmptyState,
+  Chip,
+  StatusBadge,
+} from "../components/ListUI";
+import type { Employee } from "../types/employee";
 
-interface Employee {
-  id: number;
-  employeeIdNumber: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  password?: string;
-  mustChangePassword: boolean;
-  isAdmin: boolean;
-  middleName: string;
-  dateOfBirth: string;
-  age: number;
-  gender: string;
-  civilStatus: string;
-  currentAddress: string;
-  permanentAddress: string;
-  contactNumber: string;
-  personalEmailAddress: string;
-  emergencyContactName: string;
-  emergencyContactNumber: string;
-  relationToEmployee: string;
-  emergencyContactAddress: string;
-  jobTitle: string;
-  employmentType: string;
-  dateHired: string;
-  declaredDateHired: string;
-  officeType: string;
-  dailySalary: number;
-  dailyAllowance: number;
-  bloodType: string;
-  hasGovernmentDeductions: boolean;
-  sssNumber: string;
-  philHealthNumber: string;
-  pagIbigNumber: string;
-  deductionType: string;
-  photo?: string;
-  employmentStatus: string;
-  maxLeaveHours: number;
-  usedLeaveHours: number;
-  remainingLeaveHours: number;
-}
+type TabFilter = "All" | "Admin" | "Staff";
 
 const ITEMS_PER_PAGE = 10;
+const TABS: TabFilter[] = ["All", "Admin", "Staff"];
+
+const EMPLOYEE_GRID = "md:grid-cols-[minmax(0,1.2fr)_150px_130px_140px_216px]";
 
 const initialFormState = {
   employeeIdNumber: "",
@@ -106,9 +79,10 @@ const initialFormState = {
 export default function EmployeeManagement() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab] = useState<"all" | "admin" | "staff">("all");
+  const [activeTab, setActiveTab] = useState<TabFilter>("All");
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -131,28 +105,40 @@ export default function EmployeeManagement() {
   const showToast = useCallback(
     (text: string, type: "success" | "error" = "success") => {
       setToast({ text, type });
-      setTimeout(() => setToast(null), 3000);
+      setTimeout(() => setToast(null), 3500);
     },
     [],
   );
 
   const loadEmployees = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const res = await api.get("/Employees");
       setEmployees(res.data);
     } catch {
+      setEmployees([]);
+      setLoadError(true);
       showToast("Failed to load employees.", "error");
+    } finally {
+      setLoading(false);
     }
   }, [showToast]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchInitialData = async () => {
+      setLoading(true);
+      setLoadError(false);
       try {
         const res = await api.get("/Employees");
         if (isMounted) setEmployees(res.data);
       } catch {
-        if (isMounted) showToast("Failed to load employees.", "error");
+        if (isMounted) {
+          setEmployees([]);
+          setLoadError(true);
+          showToast("Failed to load employees.", "error");
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -221,6 +207,17 @@ export default function EmployeeManagement() {
     }
   };
 
+  const tabCounts: Record<TabFilter, number> = {
+    All: employees.filter((emp) => emp.id.toString() !== loggedInEmployeeId)
+      .length,
+    Admin: employees.filter(
+      (emp) => emp.id.toString() !== loggedInEmployeeId && emp.isAdmin,
+    ).length,
+    Staff: employees.filter(
+      (emp) => emp.id.toString() !== loggedInEmployeeId && !emp.isAdmin,
+    ).length,
+  };
+
   const filteredEmployees = useMemo(() => {
     return employees
       .filter((emp) => {
@@ -234,9 +231,10 @@ export default function EmployeeManagement() {
           emp.employeeIdNumber.toLowerCase().includes(query) ||
           emp.jobTitle.toLowerCase().includes(query);
 
-        if (activeTab === "admin") return matchesSearch && emp.isAdmin;
-        if (activeTab === "staff") return matchesSearch && !emp.isAdmin;
-        return matchesSearch;
+        if (!matchesSearch) return false;
+        if (activeTab === "Admin") return emp.isAdmin;
+        if (activeTab === "Staff") return !emp.isAdmin;
+        return true;
       })
       .sort((a, b) => a.lastName.localeCompare(b.lastName));
   }, [employees, searchQuery, activeTab, loggedInEmployeeId]);
@@ -249,269 +247,252 @@ export default function EmployeeManagement() {
     return filteredEmployees.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredEmployees, currentPage]);
 
-  return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <div className="space-y-5">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer shrink-0"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700 border border-amber-100 shrink-0">
-              <Users size={18} />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                Employee Directory
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Manage organization staff records, roles, and leave balances.
-              </p>
-            </div>
-          </div>
+  const changePage = (p: number) => {
+    setCurrentPage(p);
+    document
+      .getElementById("employee-directory-card")
+      ?.scrollIntoView({ block: "start" });
+  };
 
+  const fileButton = (
+    <button
+      onClick={() => setShowAddModal(true)}
+      disabled={loading}
+      className={`flex h-10 items-center justify-center gap-1.5 rounded-lg bg-(--primary) px-4 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-(--primary-hover) cursor-pointer disabled:cursor-not-allowed disabled:opacity-50`}
+    >
+      <Plus size={16} />
+      Add employee
+    </button>
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      {/* Header */}
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 bg-(--primary) hover:bg-(--primary-hover) text-slate-950 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer w-full sm:w-auto justify-center active:scale-[0.98]"
+            onClick={() => navigate("/dashboard")}
+            className={`p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white border border-transparent hover:border-slate-200 transition-colors cursor-pointer shrink-0`}
           >
-            <Plus size={16} /> Add Employee
+            <ArrowLeft size={18} />
           </button>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-700">
+            <Users size={19} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+              Employee directory
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Manage organization staff records, roles, and leave balances.
+            </p>
+          </div>
         </div>
 
-        {/* Main Workspace Card */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50/50">
-            <div className="max-w-md w-full relative">
+        <div className="flex w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+          {fileButton}
+        </div>
+      </div>
+
+      {/* Card */}
+      <section
+        id="employee-directory-card"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      >
+        {/* Filters & Search */}
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
+          <div className="w-full sm:w-72">
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+              <Search size={13} className="text-slate-400" />
+              Search staff
+            </label>
+            <div className="relative">
               <input
                 type="text"
-                placeholder="Search staff by name, ID, or title..."
+                placeholder="Name, ID, or title..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full h-11 pl-9 pr-4 border border-slate-300 bg-white rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:border-(--primary)"
+                className={`h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm font-medium text-slate-800 placeholder-slate-400 focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20 ${FOCUS}`}
               />
               <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
             </div>
           </div>
 
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                  <th className="py-3.5 px-6">Employee ID / User</th>
-                  <th className="py-3.5 px-6">Full Name</th>
-                  <th className="py-3.5 px-6">Job Title</th>
-                  <th className="py-3.5 px-6">Leave Balance</th>
-                  <th className="py-3.5 px-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="py-12 text-center text-slate-400"
-                    >
-                      <Loader2
-                        size={22}
-                        className="animate-spin text-amber-600 mx-auto mb-2"
-                      />
-                      Loading employees...
-                    </td>
-                  </tr>
-                ) : paginatedEmployees.length > 0 ? (
-                  paginatedEmployees.map((emp) => (
-                    <tr
-                      key={emp.id}
-                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
-                      onClick={() => setViewEmployee(emp)}
-                    >
-                      <td className="py-4 px-6">
-                        <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                          {emp.employeeIdNumber}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 font-bold text-slate-900 text-xs">
-                        {emp.lastName}, {emp.firstName}
-                      </td>
-                      <td className="py-4 px-6 text-slate-600 text-xs">
-                        {emp.jobTitle || "N/A"}
-                      </td>
-                      <td className="py-4 px-6 text-xs">
-                        <span className="font-bold text-slate-900">
-                          {emp.remainingLeaveHours} hrs
-                        </span>{" "}
-                        / {emp.maxLeaveHours} hrs
-                      </td>
-                      <td
-                        className="py-4 px-6 text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-1.5 flex-nowrap">
-                          <button
-                            onClick={() => setResetLeaveId(emp.id)}
-                            className="text-slate-400 hover:text-amber-700 p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer"
-                            title="Reset Leave Balance"
-                          >
-                            <RotateCcw size={16} />
-                          </button>
-                          <button
-                            onClick={() => setViewEmployee(emp)}
-                            className="text-slate-400 hover:text-amber-700 p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer"
-                            title="View Profile"
-                          >
-                            <Eye size={16} />
-                          </button>
-                          <button
-                            onClick={() => setEditEmployeeData(emp)}
-                            className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                            title="Edit Record"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteId(emp.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Delete Record"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="py-12 text-center text-slate-400 text-xs"
-                    >
-                      No employees found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Card View */}
-          <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
-            {loading ? (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 space-y-2">
-                <Loader2
-                  size={22}
-                  className="animate-spin text-amber-600 mx-auto"
-                />
-                <p className="text-xs font-semibold text-slate-500">
-                  Loading employees...
-                </p>
-              </div>
-            ) : paginatedEmployees.length > 0 ? (
-              paginatedEmployees.map((emp) => (
-                <div
-                  key={emp.id}
-                  onClick={() => setViewEmployee(emp)}
-                  className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3 cursor-pointer"
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-slate-600">
+              Role view
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {TABS.map((tab) => (
+                <Chip
+                  key={tab}
+                  active={activeTab === tab}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setCurrentPage(1);
+                  }}
                 >
-                  <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-xs">
-                        {emp.lastName}, {emp.firstName}
-                      </h3>
-                      <p className="font-mono text-[11px] text-slate-500 mt-0.5">
-                        ID: {emp.employeeIdNumber} • @{emp.username}
-                      </p>
-                    </div>
-                    <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                      {emp.remainingLeaveHours} / {emp.maxLeaveHours} hrs
-                    </span>
-                  </div>
+                  {tab}
+                  <span className="ml-1.5 font-normal text-slate-400">
+                    {tabCounts[tab]}
+                  </span>
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </div>
 
-                  <div className="flex justify-between items-center text-xs pt-1">
-                    <span className="font-medium text-slate-600">
+        {/* Body */}
+        {loading ? (
+          <SkeletonRows />
+        ) : loadError ? (
+          <EmptyState
+            icon={<AlertCircle size={20} />}
+            title="Couldn't load employees"
+            text="Check your connection and try again."
+            action={
+              <button
+                onClick={loadEmployees}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+              >
+                <RotateCw size={13} />
+                Try again
+              </button>
+            }
+          />
+        ) : paginatedEmployees.length === 0 ? (
+          <EmptyState
+            icon={<CalendarX2 size={20} />}
+            title={
+              searchQuery
+                ? "No matching staff found"
+                : activeTab === "All"
+                  ? "No employees registered yet"
+                  : `No ${activeTab.toLowerCase()} accounts found`
+            }
+            text={
+              searchQuery
+                ? "Try adjusting your search criteria."
+                : "Staff members you add will show up here."
+            }
+            action={
+              searchQuery ? (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className={`inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                >
+                  Clear search
+                </button>
+              ) : (
+                fileButton
+              )
+            }
+          />
+        ) : (
+          <>
+            <div
+              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${EMPLOYEE_GRID}`}
+            >
+              <span>Employee / ID</span>
+              <span>Job title</span>
+              <span>Leave balance</span>
+              <span>Status</span>
+              <span className="sr-only">Actions</span>
+            </div>
+
+            <ul className="divide-y divide-slate-100">
+              {paginatedEmployees.map((emp) => {
+                const fullName = `${emp.lastName}, ${emp.firstName}`;
+                return (
+                  <li
+                    key={emp.id}
+                    onClick={() => setViewEmployee(emp)}
+                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 cursor-pointer ${ROW_BASE} ${EMPLOYEE_GRID}`}
+                  >
+                    <div className="w-full min-w-0 md:w-auto flex items-center gap-3">
+                      <div>
+                        <PersonCell name={fullName} />
+                        <span className="font-mono text-[11px] text-slate-400 block">
+                          ID: {emp.employeeIdNumber} • @{emp.username}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-medium text-slate-700 self-center">
                       {emp.jobTitle || "N/A"}
                     </span>
+
+                    <span className="text-xs font-semibold tabular-nums text-slate-900 self-center">
+                      <span className="font-bold">
+                        {emp.remainingLeaveHours}
+                      </span>{" "}
+                      / {emp.maxLeaveHours} hrs
+                    </span>
+
+                    <div className="self-center">
+                      <StatusBadge status={emp.isAdmin ? "Admin" : "Staff"} />
+                    </div>
+
                     <div
-                      className="flex items-center gap-1.5 flex-nowrap"
+                      className="flex w-full items-center justify-end gap-1.5 md:w-auto self-center"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         onClick={() => setResetLeaveId(emp.id)}
-                        className="p-2 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg cursor-pointer"
+                        aria-label="Reset leave balance"
+                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700 cursor-pointer ${FOCUS}`}
                         title="Reset Leave Balance"
                       >
                         <RotateCcw size={16} />
                       </button>
                       <button
                         onClick={() => setViewEmployee(emp)}
-                        className="p-2 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg cursor-pointer"
+                        aria-label="View profile"
+                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700 cursor-pointer ${FOCUS}`}
                         title="View Profile"
                       >
                         <Eye size={16} />
                       </button>
                       <button
                         onClick={() => setEditEmployeeData(emp)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
+                        aria-label="Edit record"
+                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer ${FOCUS}`}
                         title="Edit Record"
                       >
                         <Edit3 size={16} />
                       </button>
                       <button
                         onClick={() => setDeleteId(emp.id)}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                        aria-label="Delete record"
+                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
                         title="Delete Record"
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 text-center text-slate-400 text-xs">
-                No employees found.
-              </div>
-            )}
-          </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
 
-          {calculatedTotalPages > 1 && (
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span>
-                Page {currentPage} of {calculatedTotalPages}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 border bg-white rounded-lg disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(calculatedTotalPages, p + 1))
-                  }
-                  disabled={currentPage === calculatedTotalPages}
-                  className="p-2 border bg-white rounded-lg disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        {!loading && (
+          <PaginationBar
+            page={currentPage}
+            totalPages={calculatedTotalPages}
+            onPageChange={changePage}
+          />
+        )}
+      </section>
 
+      {/* View Modal */}
       <ViewEmployeeModal
         employee={viewEmployee}
         onClose={() => setViewEmployee(null)}
@@ -523,11 +504,11 @@ export default function EmployeeManagement() {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-xl overflow-hidden border border-slate-200">
-            <div className="p-4 sm:p-5 flex justify-between items-center border-b border-slate-100 bg-white shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white p-4 sm:p-5">
               <h2 className="text-base font-bold text-slate-900">
-                Register New Employee
+                Register new employee
               </h2>
               <button
                 onClick={() => setShowAddModal(false)}
@@ -538,7 +519,7 @@ export default function EmployeeManagement() {
             </div>
             <form
               onSubmit={handleCreate}
-              className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4"
+              className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5"
             >
               <EmployeeFormFields
                 formData={formData}
@@ -546,11 +527,12 @@ export default function EmployeeManagement() {
                 isSubmitting={isSubmitting}
               />
             </form>
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+            <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4">
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 border rounded-xl text-xs font-semibold cursor-pointer"
+                disabled={isSubmitting}
+                className={`rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 ${FOCUS}`}
               >
                 Cancel
               </button>
@@ -558,7 +540,7 @@ export default function EmployeeManagement() {
                 type="submit"
                 onClick={handleCreate}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-(--primary) rounded-xl text-xs font-bold cursor-pointer"
+                className={`flex items-center gap-2 rounded-xl bg-(--primary) px-4 py-2 font-semibold text-slate-950 shadow-sm hover:bg-(--primary-hover) cursor-pointer disabled:opacity-50 active:scale-[0.98] ${FOCUS}`}
               >
                 Save
               </button>
@@ -569,11 +551,11 @@ export default function EmployeeManagement() {
 
       {/* Edit Modal */}
       {editEmployeeData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-xl overflow-hidden border border-slate-200">
-            <div className="p-4 sm:p-5 flex justify-between items-center border-b border-slate-100 bg-white shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white p-4 sm:p-5">
               <h2 className="text-base font-bold text-slate-900">
-                Edit Employee Record
+                Edit employee record
               </h2>
               <button
                 onClick={() => setEditEmployeeData(null)}
@@ -584,7 +566,7 @@ export default function EmployeeManagement() {
             </div>
             <form
               onSubmit={handleUpdate}
-              className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4"
+              className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5"
             >
               <EmployeeFormFields
                 formData={editEmployeeData}
@@ -602,11 +584,12 @@ export default function EmployeeManagement() {
                 isSubmitting={isSubmitting}
               />
             </form>
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+            <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4">
               <button
                 type="button"
                 onClick={() => setEditEmployeeData(null)}
-                className="px-4 py-2 border rounded-xl text-xs font-semibold cursor-pointer"
+                disabled={isSubmitting}
+                className={`rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 ${FOCUS}`}
               >
                 Cancel
               </button>
@@ -614,18 +597,19 @@ export default function EmployeeManagement() {
                 type="submit"
                 onClick={handleUpdate}
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-(--primary) rounded-xl text-xs font-bold cursor-pointer"
+                className={`flex items-center gap-2 rounded-xl bg-(--primary) px-4 py-2 font-semibold text-slate-950 shadow-sm hover:bg-(--primary-hover) cursor-pointer disabled:opacity-50 active:scale-[0.98] ${FOCUS}`}
               >
-                Save Changes
+                Save changes
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modals & Toast */}
       <ConfirmModal
         isOpen={deleteId !== null}
-        title="Delete Employee"
+        title="Delete employee"
         message="Are you sure you want to delete this employee record?"
         confirmText="Delete"
         type="danger"
@@ -635,9 +619,9 @@ export default function EmployeeManagement() {
 
       <ConfirmModal
         isOpen={resetLeaveId !== null}
-        title="Reset Leave Balance"
+        title="Reset leave balance"
         message="Are you sure you want to reset this employee's leave balance back to the maximum limit? All past leave records will be preserved for history."
-        confirmText="Reset Balance"
+        confirmText="Reset balance"
         type="primary"
         onConfirm={executeResetLeave}
         onClose={() => setResetLeaveId(null)}
