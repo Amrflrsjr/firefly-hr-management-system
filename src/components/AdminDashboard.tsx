@@ -181,7 +181,7 @@ export default function AdminDashboard({
               </h2>
               <p className="text-xs text-slate-500">
                 Monitor overall employee counts, attendance compliance, pending
-                approvals, and payroll metrics in real-time[cite: 17].
+                approvals, and payroll metrics in real-time.
               </p>
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function AdminDashboard({
             </span>
           </div>
           <p className="text-xs font-medium text-slate-500">
-            Leave requests ({totalLeavesCount} tracked)[cite: 17]
+            Leave requests ({totalLeavesCount} tracked)
           </p>
         </div>
 
@@ -471,7 +471,7 @@ export default function AdminDashboard({
             </div>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center font-medium">
-            <span>Next active payroll cutoff cycle[cite: 17]</span>
+            <span>Next active payroll cutoff cycle</span>
             <span className="font-bold text-slate-900 font-mono">
               {cutoffDate.toLocaleDateString("en-PH", {
                 month: "long",
