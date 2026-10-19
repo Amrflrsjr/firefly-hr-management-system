@@ -297,7 +297,7 @@ export default function EmployeeManagement() {
       {/* Card */}
       <section
         id="employee-directory-card"
-        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col"
       >
         {/* Filters & Search */}
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
@@ -395,92 +395,129 @@ export default function EmployeeManagement() {
             }
           />
         ) : (
-          <>
-            <div
-              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${EMPLOYEE_GRID}`}
-            >
-              <span>Employee / ID</span>
-              <span>Job title</span>
-              <span>Leave balance</span>
-              <span>Status</span>
-              <span className="sr-only">Actions</span>
-            </div>
+          <div className="overflow-x-auto w-full">
+            <div className="md:min-w-[900px] flex flex-col w-full">
+              <div
+                className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${EMPLOYEE_GRID}`}
+              >
+                <span>Employee / ID</span>
+                <span>Job title</span>
+                <span>Leave balance</span>
+                <span>Status</span>
+                <span className="sr-only">Actions</span>
+              </div>
 
-            <ul className="divide-y divide-slate-100">
-              {paginatedEmployees.map((emp) => {
-                const fullName = `${emp.lastName}, ${emp.firstName}`;
-                return (
-                  <li
-                    key={emp.id}
-                    onClick={() => setViewEmployee(emp)}
-                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 cursor-pointer ${ROW_BASE} ${EMPLOYEE_GRID}`}
-                  >
-                    <div className="w-full min-w-0 md:w-auto flex items-center gap-3">
-                      <div>
-                        <PersonCell name={fullName} />
-                        <span className="font-mono text-[11px] text-slate-400 block">
-                          ID: {emp.employeeIdNumber} • @{emp.username}
+              <ul className="divide-y divide-slate-100">
+                {paginatedEmployees.map((emp) => {
+                  const fullName = `${emp.lastName}, ${emp.firstName}`;
+                  return (
+                    <li
+                      key={emp.id}
+                      onClick={() => setViewEmployee(emp)}
+                      className={`relative px-5 py-4 md:py-3 transition-colors hover:bg-slate-50/70 cursor-pointer flex flex-col gap-3 md:grid md:items-center md:gap-x-4 md:gap-y-0 ${ROW_BASE} ${EMPLOYEE_GRID}`}
+                    >
+                      {/* Mobile Row 1: Employee & Status */}
+                      <div className="flex items-center justify-between w-full md:contents">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <PersonCell name={fullName} />
+                          <div>
+                            <span className="font-mono text-[11px] text-slate-400 block mt-0.5 truncate">
+                              ID: {emp.employeeIdNumber} • @{emp.username}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="md:hidden">
+                          <StatusBadge
+                            status={emp.isAdmin ? "Admin" : "Staff"}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Mobile Row 2: Job title & Leave Balance */}
+                      <div className="flex items-center justify-between w-full md:contents">
+                        <div className="flex flex-col md:hidden text-xs text-slate-500">
+                          <span>Job Title</span>
+                          <span className="text-xs font-medium text-slate-700 mt-0.5">
+                            {emp.jobTitle || "N/A"}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col md:hidden text-xs text-slate-500 items-end md:items-start">
+                          <span>Leave Balance</span>
+                          <span className="text-xs font-semibold tabular-nums text-slate-900 mt-0.5">
+                            <span className="font-bold">
+                              {emp.remainingLeaveHours}
+                            </span>{" "}
+                            / {emp.maxLeaveHours} hrs
+                          </span>
+                        </div>
+
+                        {/* Desktop Values */}
+                        <span className="hidden md:block text-xs font-medium text-slate-700 self-center">
+                          {emp.jobTitle || "N/A"}
+                        </span>
+
+                        <span className="hidden md:block text-xs font-semibold tabular-nums text-slate-900 self-center">
+                          <span className="font-bold">
+                            {emp.remainingLeaveHours}
+                          </span>{" "}
+                          / {emp.maxLeaveHours} hrs
                         </span>
                       </div>
-                    </div>
 
-                    <span className="text-xs font-medium text-slate-700 self-center">
-                      {emp.jobTitle || "N/A"}
-                    </span>
+                      {/* Mobile Row 3: Actions */}
+                      <div className="flex items-end justify-between w-full md:contents mt-1 md:mt-0">
+                        <div className="hidden md:block self-center">
+                          <StatusBadge
+                            status={emp.isAdmin ? "Admin" : "Staff"}
+                          />
+                        </div>
 
-                    <span className="text-xs font-semibold tabular-nums text-slate-900 self-center">
-                      <span className="font-bold">
-                        {emp.remainingLeaveHours}
-                      </span>{" "}
-                      / {emp.maxLeaveHours} hrs
-                    </span>
-
-                    <div className="self-center">
-                      <StatusBadge status={emp.isAdmin ? "Admin" : "Staff"} />
-                    </div>
-
-                    <div
-                      className="flex w-full items-center justify-end gap-1.5 md:w-auto self-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={() => setResetLeaveId(emp.id)}
-                        aria-label="Reset leave balance"
-                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700 cursor-pointer ${FOCUS}`}
-                        title="Reset Leave Balance"
-                      >
-                        <RotateCcw size={16} />
-                      </button>
-                      <button
-                        onClick={() => setViewEmployee(emp)}
-                        aria-label="View profile"
-                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700 cursor-pointer ${FOCUS}`}
-                        title="View Profile"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => setEditEmployeeData(emp)}
-                        aria-label="Edit record"
-                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer ${FOCUS}`}
-                        title="Edit Record"
-                      >
-                        <Edit3 size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteId(emp.id)}
-                        aria-label="Delete record"
-                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
-                        title="Delete Record"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+                        <div
+                          className="flex w-full items-center justify-end gap-1.5 md:w-auto self-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => setResetLeaveId(emp.id)}
+                            aria-label="Reset leave balance"
+                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700 cursor-pointer ${FOCUS}`}
+                            title="Reset Leave Balance"
+                          >
+                            <RotateCcw size={16} />
+                          </button>
+                          <button
+                            onClick={() => setViewEmployee(emp)}
+                            aria-label="View profile"
+                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700 cursor-pointer ${FOCUS}`}
+                            title="View Profile"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => setEditEmployeeData(emp)}
+                            aria-label="Edit record"
+                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 cursor-pointer ${FOCUS}`}
+                            title="Edit Record"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteId(emp.id)}
+                            aria-label="Delete record"
+                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                            title="Delete Record"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         )}
 
         {!loading && (

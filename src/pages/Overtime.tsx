@@ -53,7 +53,7 @@ const STATUS_FILTERS: StatusFilter[] = [
   "Cancelled",
 ];
 
-// key = `${showEmployee}-${actionsKind}`[cite: 4]
+// key = `${showEmployee}-${actionsKind}`
 const OVERTIME_GRID: Record<string, string> = {
   "1-admin": "md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_88px_120px_216px]",
   "1-emp": "md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_88px_120px_96px]",
@@ -79,7 +79,6 @@ const DEFAULT_FORM = {
 export default function Overtime() {
   const [overtimes, setOvertimes] = useState<OvertimeItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  // Nothing to fetch for a signed-out employee, so don't start in a loading state.[cite: 4]
   const [loading, setLoading] = useState<boolean>(
     () =>
       localStorage.getItem("role") === "Admin" ||
@@ -99,13 +98,11 @@ export default function Overtime() {
     isAdmin ? "all" : loggedInEmployeeId,
   );
 
-  // The modal has its own employee field, so it never changes the page filter.[cite: 4]
   const [formData, setFormData] = useState({
     employeeId: "",
     ...DEFAULT_FORM,
   });
 
-  // Hours between start and end; an earlier end time means it runs past midnight.[cite: 4]
   const calculatedHours = useMemo(() => {
     if (!formData.timeIn || !formData.timeOut) return 0;
     const [inHours, inMinutes] = formData.timeIn.split(":").map(Number);
@@ -140,14 +137,12 @@ export default function Overtime() {
   const showToast = (text: string, type: "success" | "error" = "success") =>
     setToast({ text, type });
 
-  // Auto-dismiss; a new toast replaces the object, which restarts the timer.[cite: 4]
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // Employee list is only needed by admins (filter + modal), so load it once.[cite: 4]
   useEffect(() => {
     if (!isAdmin) return;
     let alive = true;
@@ -162,7 +157,7 @@ export default function Overtime() {
           );
         setEmployees(nonAdmins);
       } catch {
-        // The employee filter simply stays hidden if this fails.[cite: 4]
+        // The employee filter simply stays hidden if this fails.
       }
     };
     loadEmployees();
@@ -171,7 +166,6 @@ export default function Overtime() {
     };
   }, [isAdmin]);
 
-  // Fetch logic encapsulated entirely inside useEffect to avoid cascading setState warnings[cite: 4]
   useEffect(() => {
     let isMounted = true;
 
@@ -206,8 +200,6 @@ export default function Overtime() {
     };
   }, [isAdmin, loggedInEmployeeId, selectedEmployee]);
 
-  // Loading state is switched on by the event that triggers a fetch (not inside
-  // the effect), so the effect itself only reacts to the async result.[cite: 4]
   const startLoading = () => {
     setLoading(true);
     setLoadError(false);
@@ -374,8 +366,6 @@ export default function Overtime() {
     });
   };
 
-  /* ----- derived data -----[cite: 4] */
-
   const statusCounts: Record<StatusFilter, number> = {
     All: overtimes.length,
     "In Review": overtimes.filter((o) => o.status === "In Review").length,
@@ -385,7 +375,6 @@ export default function Overtime() {
   };
   const pendingCount = statusCounts["In Review"];
 
-  // In-review first (that's what admins act on), then newest date first.[cite: 4]
   const visibleOvertimes = useMemo(() => {
     return overtimes
       .filter((o) => statusFilter === "All" || o.status === statusFilter)
@@ -454,7 +443,7 @@ export default function Overtime() {
       {/* Card */}
       <section
         id="overtime-card"
-        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col"
       >
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
@@ -565,99 +554,143 @@ export default function Overtime() {
             }
           />
         ) : (
-          <>
-            <div
-              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
-            >
-              {showEmployeeCol && <span>Employee</span>}
-              <span>Date</span>
-              <span>Hours</span>
-              <span>Status</span>
-              {showActions && <span className="sr-only">Actions</span>}
+          <div className="overflow-x-auto w-full">
+            <div className="min-w-187.5 flex flex-col w-full">
+              {/* Desktop Table Header */}
+              <div
+                className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
+              >
+                {showEmployeeCol && <span>Employee</span>}
+                <span>Date</span>
+                <span>Hours</span>
+                <span>Status</span>
+                {showActions && <span className="sr-only">Actions</span>}
+              </div>
+
+              <ul className="divide-y divide-slate-100">
+                {paginatedOvertimes.map((ot) => {
+                  const date = new Date(ot.overtimeDate);
+                  const isPending = ot.status === "In Review";
+                  return (
+                    <li
+                      key={ot.id}
+                      className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 flex flex-col gap-3 md:grid md:items-center md:gap-x-4 md:gap-y-0 ${ROW_BASE} ${grid}`}
+                    >
+                      {isPending && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
+                        />
+                      )}
+
+                      {/* Mobile Row 1: Employee & Status */}
+                      <div className="flex items-center justify-between w-full md:contents">
+                        {showEmployeeCol ? (
+                          <div className="w-full min-w-0">
+                            <PersonCell name={ot.employeeName || "Employee"} />
+                          </div>
+                        ) : (
+                          <div className="md:hidden" />
+                        )}
+
+                        <div className="md:hidden">
+                          <StatusBadge status={ot.status} />
+                        </div>
+                      </div>
+
+                      {/* Mobile Row 2: Date & Hours */}
+                      <div className="flex items-center justify-between w-full md:contents">
+                        <div className="flex flex-col md:hidden text-xs text-slate-500">
+                          <span>Date</span>
+                          <div className="leading-tight mt-0.5">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {fmtDate(date)}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {date.toLocaleDateString("en-US", {
+                                weekday: "long",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col md:hidden text-xs text-slate-500 items-end md:items-start">
+                          <span>Hours</span>
+                          <span className="text-sm font-semibold tabular-nums text-slate-900 mt-0.5">
+                            {ot.overtimeHours} hrs
+                          </span>
+                        </div>
+
+                        {/* Desktop Values */}
+                        <div className="hidden md:block leading-tight">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {fmtDate(date)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {date.toLocaleDateString("en-US", {
+                              weekday: "long",
+                            })}
+                          </p>
+                        </div>
+
+                        <span className="hidden md:block text-sm font-semibold tabular-nums text-slate-900">
+                          {ot.overtimeHours} hrs
+                        </span>
+                      </div>
+
+                      {/* Mobile Row 3: Actions */}
+                      <div className="flex items-end justify-between w-full md:contents mt-1 md:mt-0">
+                        <div className="hidden md:block">
+                          <StatusBadge status={ot.status} />
+                        </div>
+
+                        {showActions && (
+                          <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
+                            {isAdmin && isPending && (
+                              <>
+                                <button
+                                  onClick={() => triggerApproveModal(ot.id)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
+                                >
+                                  <Check size={14} />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => triggerDeclineModal(ot.id)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
+                                >
+                                  <X size={14} />
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {!isAdmin && isPending && (
+                              <button
+                                onClick={() => triggerCancelModal(ot.id)}
+                                className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                              >
+                                <Ban size={13} />
+                                Cancel
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => triggerDeleteModal(ot.id)}
+                                aria-label="Delete overtime record"
+                                className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-
-            <ul className="divide-y divide-slate-100">
-              {paginatedOvertimes.map((ot) => {
-                const date = new Date(ot.overtimeDate);
-                const isPending = ot.status === "In Review";
-                return (
-                  <li
-                    key={ot.id}
-                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 ${ROW_BASE} ${grid}`}
-                  >
-                    {isPending && (
-                      <span
-                        aria-hidden
-                        className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
-                      />
-                    )}
-
-                    {showEmployeeCol && (
-                      <div className="w-full min-w-0 md:w-auto">
-                        <PersonCell name={ot.employeeName || "Employee"} />
-                      </div>
-                    )}
-
-                    <div className="leading-tight">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {fmtDate(date)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {date.toLocaleDateString("en-US", { weekday: "long" })}
-                      </p>
-                    </div>
-
-                    <span className="text-sm font-semibold tabular-nums text-slate-900">
-                      {ot.overtimeHours} hrs
-                    </span>
-
-                    <StatusBadge status={ot.status} />
-
-                    {showActions && (
-                      <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
-                        {isAdmin && isPending && (
-                          <>
-                            <button
-                              onClick={() => triggerApproveModal(ot.id)}
-                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
-                            >
-                              <Check size={14} />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => triggerDeclineModal(ot.id)}
-                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
-                            >
-                              <X size={14} />
-                              Decline
-                            </button>
-                          </>
-                        )}
-                        {!isAdmin && isPending && (
-                          <button
-                            onClick={() => triggerCancelModal(ot.id)}
-                            className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
-                          >
-                            <Ban size={13} />
-                            Cancel
-                          </button>
-                        )}
-                        {isAdmin && (
-                          <button
-                            onClick={() => triggerDeleteModal(ot.id)}
-                            aria-label="Delete overtime record"
-                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+          </div>
         )}
 
         {!loading && (

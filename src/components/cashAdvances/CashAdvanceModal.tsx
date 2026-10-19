@@ -11,6 +11,7 @@ interface CashAdvanceModalProps {
     deductionType: string;
   };
   isSubmitting: boolean;
+  advanceType?: "Cash" | "Salary"; // <-- Added this
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onChange: (field: string, value: string | number) => void;
@@ -22,6 +23,7 @@ export default function CashAdvanceModal({
   employees,
   formData,
   isSubmitting,
+  advanceType = "Cash", // <-- Default to Cash
   onClose,
   onSubmit,
   onChange,
@@ -29,13 +31,15 @@ export default function CashAdvanceModal({
   if (!isOpen) return null;
 
   const isAdmin = role === "Admin";
+  const typeLabel =
+    advanceType === "Salary" ? "salary advance" : "cash advance";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
       <div className="w-full max-w-md space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-900">
-            {isAdmin ? "Add cash advance record" : "Request cash advance"}
+          <h2 className="text-base font-bold text-slate-900 capitalize">
+            {isAdmin ? `Add ${typeLabel} record` : `Request ${typeLabel}`}
           </h2>
           <button
             onClick={onClose}

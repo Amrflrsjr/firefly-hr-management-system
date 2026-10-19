@@ -251,7 +251,7 @@ export default function HolidayManagement() {
       {/* Card */}
       <section
         id="holiday-card"
-        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col"
       >
         {/* Filters & Search */}
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
@@ -349,58 +349,92 @@ export default function HolidayManagement() {
             }
           />
         ) : (
-          <>
-            <div
-              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${HOLIDAY_GRID}`}
-            >
-              <span>Description</span>
-              <span>Holiday date</span>
-              <span>Type classification</span>
-              <span className="sr-only">Actions</span>
+          <div className="overflow-x-auto w-full">
+            <div className="md:min-w-[750px] flex flex-col w-full">
+              <div
+                className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${HOLIDAY_GRID}`}
+              >
+                <span>Description</span>
+                <span>Holiday date</span>
+                <span>Type classification</span>
+                <span className="sr-only">Actions</span>
+              </div>
+
+              <ul className="divide-y divide-slate-100">
+                {paginatedHolidays.map((h) => {
+                  const dateStr = new Date(h.holidayDate).toLocaleDateString(
+                    undefined,
+                    {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    },
+                  );
+                  return (
+                    <li
+                      key={h.id}
+                      className={`relative px-5 py-4 md:py-3 transition-colors hover:bg-slate-50/70 flex flex-col gap-3 md:grid md:items-center md:gap-x-4 md:gap-y-0 ${ROW_BASE} ${HOLIDAY_GRID}`}
+                    >
+                      {/* Mobile Row 1: Description & Date */}
+                      <div className="flex items-start justify-between w-full md:contents">
+                        <div className="flex flex-col md:hidden">
+                          <span className="text-xs text-slate-500 mb-0.5">
+                            Description
+                          </span>
+                          <span className="text-sm font-bold text-slate-900 leading-tight">
+                            {h.description}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col md:hidden text-right">
+                          <span className="text-xs text-slate-500 mb-0.5">
+                            Date
+                          </span>
+                          <span className="text-xs font-medium text-slate-700">
+                            {dateStr}
+                          </span>
+                        </div>
+
+                        {/* Desktop Values */}
+                        <span className="hidden md:block text-xs font-bold text-slate-900 self-center">
+                          {h.description}
+                        </span>
+
+                        <span className="hidden md:block text-xs font-medium text-slate-600 self-center">
+                          {dateStr}
+                        </span>
+                      </div>
+
+                      {/* Mobile Row 2: Type & Actions */}
+                      <div className="flex items-end justify-between w-full md:contents mt-1 md:mt-0">
+                        <div className="flex flex-col md:hidden">
+                          <span className="text-xs text-slate-500 mb-1">
+                            Type
+                          </span>
+                          <StatusBadge status={h.holidayType} />
+                        </div>
+
+                        <div className="hidden md:block self-center">
+                          <StatusBadge status={h.holidayType} />
+                        </div>
+
+                        <div className="flex w-full items-center justify-end gap-1.5 md:w-auto self-center">
+                          <button
+                            onClick={() => setDeleteId(h.id)}
+                            aria-label="Delete holiday"
+                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                            title="Delete Holiday"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-
-            <ul className="divide-y divide-slate-100">
-              {paginatedHolidays.map((h) => {
-                const dateStr = new Date(h.holidayDate).toLocaleDateString(
-                  undefined,
-                  {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  },
-                );
-                return (
-                  <li
-                    key={h.id}
-                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 ${ROW_BASE} ${HOLIDAY_GRID}`}
-                  >
-                    <span className="text-xs font-bold text-slate-900 self-center">
-                      {h.description}
-                    </span>
-
-                    <span className="text-xs font-medium text-slate-600 self-center">
-                      {dateStr}
-                    </span>
-
-                    <div className="self-center">
-                      <StatusBadge status={h.holidayType} />
-                    </div>
-
-                    <div className="flex w-full items-center justify-end gap-1.5 md:w-auto self-center">
-                      <button
-                        onClick={() => setDeleteId(h.id)}
-                        aria-label="Delete holiday"
-                        className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
-                        title="Delete Holiday"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+          </div>
         )}
 
         {!loading && (

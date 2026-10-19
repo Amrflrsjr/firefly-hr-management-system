@@ -77,7 +77,6 @@ const MONTH_NAMES = [
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Clean, properly proportioned grid tracks
 const LEAVE_GRID: Record<string, string> = {
   "1-admin":
     "md:grid-cols-[minmax(0,1.2fr)_140px_minmax(0,1fr)_72px_120px_190px]",
@@ -812,9 +811,9 @@ export default function Leaves() {
         </div>
       </div>
 
-      {/* View Mode Switcher + Filters Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* View Mode Switcher + Filters Bar - UPDATED RESPONSIVE CLASSES */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto overflow-hidden">
           {isAdmin && employees.length > 0 && (
             <select
               value={selectedEmployee}
@@ -824,7 +823,7 @@ export default function Leaves() {
                 setSelectedEmployee(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-9 cursor-pointer rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 focus:border-(--primary) focus:outline-none"
+              className="h-9 w-full sm:w-auto shrink-0 cursor-pointer rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 focus:border-(--primary) focus:outline-none"
             >
               <option value="all">All employees</option>
               {employees.map((emp) => (
@@ -835,7 +834,7 @@ export default function Leaves() {
             </select>
           )}
 
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 w-full sm:w-auto scrollbar-none">
             {STATUS_FILTERS.map((s) => (
               <Chip
                 key={s}
@@ -854,11 +853,11 @@ export default function Leaves() {
           </div>
         </div>
 
-        {/* View mode toggle */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 self-end sm:self-auto">
+        {/* View mode toggle - ADDED shrink-0 so it doesn't get cut off */}
+        <div className="flex shrink-0 items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 self-end lg:self-auto">
           <button
             onClick={() => setViewMode("list")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
               viewMode === "list"
                 ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
@@ -868,7 +867,7 @@ export default function Leaves() {
           </button>
           <button
             onClick={() => setViewMode("calendar")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
               viewMode === "calendar"
                 ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
@@ -889,7 +888,7 @@ export default function Leaves() {
       ) : (
         <section
           id="leaves-card"
-          className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+          className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col"
         >
           {loading ? (
             <SkeletonRows />
@@ -937,111 +936,160 @@ export default function Leaves() {
               }
             />
           ) : (
-            <>
-              <div
-                className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
-              >
-                {showEmployeeCol && <span>Employee</span>}
-                <span>Type</span>
-                <span>Date</span>
-                <span>Hours</span>
-                <span>Status</span>
-                <span className="sr-only">Actions</span>
-              </div>
+            <div className="overflow-x-auto w-full">
+              <div className="min-w-187.5 flex flex-col w-full">
+                <div
+                  className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
+                >
+                  {showEmployeeCol && <span>Employee</span>}
+                  <span>Type</span>
+                  <span>Date</span>
+                  <span>Hours</span>
+                  <span>Status</span>
+                  <span className="sr-only">Actions</span>
+                </div>
 
-              <ul className="divide-y divide-slate-100">
-                {paginatedLeaves.map((leave) => {
-                  const date = new Date(leave.leaveDate);
-                  const isPending = leave.status === "In Review";
-                  return (
-                    <li
-                      key={leave.id}
-                      onClick={() => setSelectedLeave(leave)}
-                      className={`relative px-5 py-3 transition-colors hover:bg-slate-50/80 cursor-pointer ${ROW_BASE} ${grid}`}
-                    >
-                      {isPending && (
-                        <span
-                          aria-hidden
-                          className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
-                        />
-                      )}
-
-                      {showEmployeeCol && (
-                        <div className="w-full min-w-0 md:w-auto">
-                          <PersonCell name={leave.employeeName || "Employee"} />
-                        </div>
-                      )}
-
-                      <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                        <Tag size={12} className="text-amber-600" />
-                        {leave.leaveType || "Vacation"}
-                      </span>
-
-                      <div className="leading-tight">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {fmtDate(date)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {date.toLocaleDateString("en-US", {
-                            weekday: "long",
-                          })}
-                        </p>
-                      </div>
-
-                      <span className="text-sm font-semibold tabular-nums text-slate-900">
-                        {leave.leaveHours} hrs
-                      </span>
-
-                      <div>
-                        <StatusBadge status={leave.status} />
-                      </div>
-
-                      <div
-                        className="flex w-full items-center justify-end gap-1.5 md:w-auto"
-                        onClick={(e) => e.stopPropagation()} // Prevent row click when clicking action buttons
+                <ul className="divide-y divide-slate-100">
+                  {paginatedLeaves.map((leave) => {
+                    const date = new Date(leave.leaveDate);
+                    const isPending = leave.status === "In Review";
+                    return (
+                      <li
+                        key={leave.id}
+                        onClick={() => setSelectedLeave(leave)}
+                        className={`relative px-5 py-3 transition-colors hover:bg-slate-50/80 cursor-pointer flex flex-col gap-3 md:grid md:items-center md:gap-x-4 md:gap-y-0 ${ROW_BASE} ${grid}`}
                       >
-                        {isAdmin && isPending && (
-                          <>
-                            <button
-                              onClick={() => triggerApproveModal(leave.id)}
-                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
-                            >
-                              <Check size={14} />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => triggerDeclineModal(leave.id)}
-                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
-                            >
-                              <X size={14} />
-                              Decline
-                            </button>
-                          </>
+                        {isPending && (
+                          <span
+                            aria-hidden
+                            className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
+                          />
                         )}
-                        {!isAdmin && isPending && (
-                          <button
-                            onClick={() => triggerCancelModal(leave.id)}
-                            className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+
+                        {/* Mobile Row 1: Employee & Status */}
+                        <div className="flex items-center justify-between w-full md:contents">
+                          {showEmployeeCol ? (
+                            <div className="w-full min-w-0">
+                              <PersonCell
+                                name={leave.employeeName || "Employee"}
+                              />
+                            </div>
+                          ) : (
+                            <div className="md:hidden" />
+                          )}
+
+                          <div className="md:hidden">
+                            <StatusBadge status={leave.status} />
+                          </div>
+                        </div>
+
+                        {/* Mobile Row 2: Type & Date */}
+                        <div className="flex items-center justify-between w-full md:contents">
+                          <div className="flex flex-col md:hidden text-xs text-slate-500 gap-1">
+                            <span>Type</span>
+                            <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                              <Tag size={12} className="text-amber-600" />
+                              {leave.leaveType || "Vacation"}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col md:hidden text-xs text-slate-500 items-end md:items-start">
+                            <span>Date</span>
+                            <div className="leading-tight text-right md:text-left mt-0.5">
+                              <p className="text-sm font-semibold text-slate-900">
+                                {fmtDate(date)}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {date.toLocaleDateString("en-US", {
+                                  weekday: "long",
+                                })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Desktop Values */}
+                          <span className="hidden md:inline-flex w-fit items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                            <Tag size={12} className="text-amber-600" />
+                            {leave.leaveType || "Vacation"}
+                          </span>
+
+                          <div className="hidden md:block leading-tight">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {fmtDate(date)}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {date.toLocaleDateString("en-US", {
+                                weekday: "long",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Mobile Row 3: Hours & Actions */}
+                        <div className="flex items-end justify-between w-full md:contents mt-1 md:mt-0">
+                          <div className="flex flex-col md:hidden text-xs text-slate-500">
+                            <span>Hours</span>
+                            <span className="text-sm font-semibold tabular-nums text-slate-900 mt-0.5">
+                              {leave.leaveHours} hrs
+                            </span>
+                          </div>
+
+                          <span className="hidden md:block text-sm font-semibold tabular-nums text-slate-900">
+                            {leave.leaveHours} hrs
+                          </span>
+
+                          <div className="hidden md:block">
+                            <StatusBadge status={leave.status} />
+                          </div>
+
+                          <div
+                            className="flex w-full items-center justify-end gap-1.5 md:w-auto"
+                            onClick={(e) => e.stopPropagation()} // Prevent row click when clicking action buttons
                           >
-                            <Ban size={13} />
-                            Cancel
-                          </button>
-                        )}
-                        {isAdmin && (
-                          <button
-                            onClick={() => triggerDeleteModal(leave.id)}
-                            aria-label="Delete leave record"
-                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
+                            {isAdmin && isPending && (
+                              <>
+                                <button
+                                  onClick={() => triggerApproveModal(leave.id)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
+                                >
+                                  <Check size={14} />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => triggerDeclineModal(leave.id)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
+                                >
+                                  <X size={14} />
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {!isAdmin && isPending && (
+                              <button
+                                onClick={() => triggerCancelModal(leave.id)}
+                                className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                              >
+                                <Ban size={13} />
+                                Cancel
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => triggerDeleteModal(leave.id)}
+                                aria-label="Delete leave record"
+                                className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
           )}
 
           {!loading && viewMode === "list" && (

@@ -47,6 +47,7 @@ interface CashAdvanceRecord {
   cashAdvanceAmount?: number;
   status: string;
   date: string;
+  type?: string;
 }
 
 const EARNING_ITEMS: ParameterItem[] = [
@@ -758,39 +759,56 @@ export default function PayrollGenerator() {
                     }}
                   />
 
-                  {/* Detailed Cash Advance Calculation breakdown card */}
+                  {/* Detailed Advance Calculation breakdown card */}
                   {activeAdvances.length > 0 && (
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs space-y-2">
                       <div className="font-bold text-slate-800 flex items-center justify-between">
-                        <span>Active Cash Advances Breakdown (FIFO)</span>
+                        <span>Active Advances Breakdown (FIFO)</span>
                         <span className="font-mono font-semibold text-amber-800">
                           Total: {peso(totalEmployeeBalance)}
                         </span>
                       </div>
                       <div className="space-y-1.5">
-                        {advanceCalculations.map((calc, idx) => (
-                          <div
-                            key={calc.id}
-                            className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-slate-200/70 shadow-2xs"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-700">
-                                #{idx + 1} (Advance ID: {calc.id})
-                              </span>
-                              <span className="text-slate-400">
-                                · Initial: {peso(calc.initialBalance)}
-                              </span>
+                        {advanceCalculations.map((calc, idx) => {
+                          // Find the original advance record to get its type
+                          const record = activeAdvances.find(
+                            (a) => a.id === calc.id,
+                          );
+                          const isSalary = record?.type === "Salary";
+
+                          return (
+                            <div
+                              key={calc.id}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200/70 shadow-2xs"
+                            >
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-700">
+                                  #{idx + 1} (ID: {calc.id})
+                                </span>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                                    isSalary
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }`}
+                                >
+                                  {record?.type || "Cash"}
+                                </span>
+                                <span className="text-slate-400 text-[11px]">
+                                  · Initial: {peso(calc.initialBalance)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 font-mono text-[11px] sm:text-xs">
+                                <span className="text-rose-600 font-semibold">
+                                  Applied: −{peso(calc.appliedDeduction)}
+                                </span>
+                                <span className="text-slate-600">
+                                  Left: {peso(calc.remainingBalance)}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 font-mono">
-                              <span className="text-rose-600 font-semibold">
-                                Applied: −{peso(calc.appliedDeduction)}
-                              </span>
-                              <span className="text-slate-600">
-                                Left: {peso(calc.remainingBalance)}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

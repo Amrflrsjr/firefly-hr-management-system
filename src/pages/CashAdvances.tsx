@@ -12,6 +12,7 @@ import {
   CalendarX2,
   RotateCw,
   AlertCircle,
+  Banknote,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
@@ -43,6 +44,7 @@ interface CashAdvance {
   deductionType: string;
   date: string;
   status: string;
+  type?: string;
 }
 
 type StatusFilter =
@@ -52,6 +54,8 @@ type StatusFilter =
   | "Paid"
   | "Declined"
   | "Canceled";
+
+type AdvanceType = "Cash" | "Salary";
 
 const ITEMS_PER_PAGE = 15;
 const STATUS_FILTERS: StatusFilter[] = [
@@ -89,6 +93,8 @@ export default function CashAdvances() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [showModal, setShowModal] = useState(false);
+
+  const [advanceType, setAdvanceType] = useState<AdvanceType>("Cash");
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = Number(localStorage.getItem("employeeId")) || 1;
@@ -170,7 +176,7 @@ export default function CashAdvances() {
     };
   }, [isAdmin]);
 
-  // Encapsulated fetch logic fetching all cash advances and handling permissions/filtering cleanly
+  // Encapsulated fetch logic
   useEffect(() => {
     let isMounted = true;
 
@@ -255,6 +261,7 @@ export default function CashAdvances() {
         deductionType: formData.deductionType,
         date: new Date().toISOString(),
         status: isAdmin ? "Active" : "Pending",
+        type: advanceType,
       });
       setShowModal(false);
       setFormData({
@@ -267,12 +274,15 @@ export default function CashAdvances() {
       });
       showToast(
         isAdmin
-          ? "Cash advance record created successfully!"
-          : "Cash advance request submitted for approval!",
+          ? `${advanceType} advance record created successfully!`
+          : `${advanceType} advance request submitted for approval!`,
       );
       reload();
-    } catch {
-      showToast("Failed to process cash advance.", "error");
+    } catch (err: unknown) {
+      const errorMsg =
+        (err as { response?: { data?: string } })?.response?.data ||
+        `Failed to process ${advanceType.toLowerCase()} advance.`;
+      showToast(errorMsg, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -281,17 +291,20 @@ export default function CashAdvances() {
   const handleApprove = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Approve cash advance",
-      message: "Are you sure you want to approve this cash advance request?",
+      title: `Approve ${advanceType.toLowerCase()} advance`,
+      message: `Are you sure you want to approve this ${advanceType.toLowerCase()} advance request?`,
       confirmText: "Approve",
       type: "primary",
       onConfirm: async () => {
         try {
           await api.put(`/CashAdvances/${id}/approve`);
-          showToast("Cash advance approved successfully!");
+          showToast(`${advanceType} advance approved successfully!`);
           reload();
         } catch {
-          showToast("Failed to approve cash advance.", "error");
+          showToast(
+            `Failed to approve ${advanceType.toLowerCase()} advance.`,
+            "error",
+          );
         } finally {
           closeConfirm();
         }
@@ -302,17 +315,20 @@ export default function CashAdvances() {
   const handleDecline = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Decline cash advance",
-      message: "Are you sure you want to decline this cash advance request?",
+      title: `Decline ${advanceType.toLowerCase()} advance`,
+      message: `Are you sure you want to decline this ${advanceType.toLowerCase()} advance request?`,
       confirmText: "Decline",
       type: "danger",
       onConfirm: async () => {
         try {
           await api.put(`/CashAdvances/${id}/decline`);
-          showToast("Cash advance request declined.");
+          showToast(`${advanceType} advance request declined.`);
           reload();
         } catch {
-          showToast("Failed to decline cash advance.", "error");
+          showToast(
+            `Failed to decline ${advanceType.toLowerCase()} advance.`,
+            "error",
+          );
         } finally {
           closeConfirm();
         }
@@ -323,18 +339,20 @@ export default function CashAdvances() {
   const handleCancel = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Cancel cash advance request",
-      message:
-        "Are you sure you want to cancel this pending cash advance request?",
+      title: `Cancel ${advanceType.toLowerCase()} advance request`,
+      message: `Are you sure you want to cancel this pending ${advanceType.toLowerCase()} advance request?`,
       confirmText: "Cancel request",
       type: "danger",
       onConfirm: async () => {
         try {
           await api.put(`/CashAdvances/${id}/cancel`);
-          showToast("Cash advance request canceled.");
+          showToast(`${advanceType} advance request canceled.`);
           reload();
         } catch {
-          showToast("Failed to cancel cash advance request.", "error");
+          showToast(
+            `Failed to cancel ${advanceType.toLowerCase()} advance request.`,
+            "error",
+          );
         } finally {
           closeConfirm();
         }
@@ -345,18 +363,20 @@ export default function CashAdvances() {
   const handleDelete = (id: number) => {
     setModalConfig({
       isOpen: true,
-      title: "Delete cash advance record",
-      message:
-        "Are you sure you want to delete this cash advance record permanently?",
+      title: `Delete ${advanceType.toLowerCase()} advance record`,
+      message: `Are you sure you want to delete this ${advanceType.toLowerCase()} advance record permanently?`,
       confirmText: "Delete",
       type: "danger",
       onConfirm: async () => {
         try {
           await api.delete(`/CashAdvances/${id}`);
-          showToast("Cash advance record deleted successfully.");
+          showToast(`${advanceType} advance record deleted successfully.`);
           reload();
         } catch {
-          showToast("Failed to delete cash advance.", "error");
+          showToast(
+            `Failed to delete ${advanceType.toLowerCase()} advance.`,
+            "error",
+          );
         } finally {
           closeConfirm();
         }
@@ -372,37 +392,44 @@ export default function CashAdvances() {
     return `Employee ID: ${adv.employeeId}`;
   };
 
+  const typedAdvances = useMemo(() => {
+    return advances.filter((a) => {
+      const t = a.type || "Cash";
+      return t === advanceType;
+    });
+  }, [advances, advanceType]);
+
   const statusCounts: Record<StatusFilter, number> = {
-    All: advances.filter((a) =>
+    All: typedAdvances.filter((a) =>
       isAdmin && selectedEmployee !== "all"
         ? a.employeeId.toString() === selectedEmployee
         : true,
     ).length,
-    Pending: advances.filter(
+    Pending: typedAdvances.filter(
       (a) =>
         (isAdmin && selectedEmployee !== "all"
           ? a.employeeId.toString() === selectedEmployee
           : true) && a.status === "Pending",
     ).length,
-    Active: advances.filter(
+    Active: typedAdvances.filter(
       (a) =>
         (isAdmin && selectedEmployee !== "all"
           ? a.employeeId.toString() === selectedEmployee
           : true) && a.status === "Active",
     ).length,
-    Paid: advances.filter(
+    Paid: typedAdvances.filter(
       (a) =>
         (isAdmin && selectedEmployee !== "all"
           ? a.employeeId.toString() === selectedEmployee
           : true) && a.status === "Paid",
     ).length,
-    Declined: advances.filter(
+    Declined: typedAdvances.filter(
       (a) =>
         (isAdmin && selectedEmployee !== "all"
           ? a.employeeId.toString() === selectedEmployee
           : true) && a.status === "Declined",
     ).length,
-    Canceled: advances.filter(
+    Canceled: typedAdvances.filter(
       (a) =>
         (isAdmin && selectedEmployee !== "all"
           ? a.employeeId.toString() === selectedEmployee
@@ -412,7 +439,7 @@ export default function CashAdvances() {
   const pendingCount = statusCounts["Pending"];
 
   const visibleAdvances = useMemo(() => {
-    let result = advances;
+    let result = typedAdvances;
 
     if (isAdmin && selectedEmployee !== "all") {
       result = result.filter(
@@ -427,7 +454,7 @@ export default function CashAdvances() {
           Number(b.status === "Pending") - Number(a.status === "Pending") ||
           new Date(b.date).getTime() - new Date(a.date).getTime(),
       );
-  }, [advances, statusFilter, isAdmin, selectedEmployee]);
+  }, [typedAdvances, statusFilter, isAdmin, selectedEmployee]);
 
   const totalPages = Math.ceil(visibleAdvances.length / ITEMS_PER_PAGE);
   const paginatedAdvances = useMemo(() => {
@@ -464,7 +491,9 @@ export default function CashAdvances() {
       className={`flex h-10 items-center justify-center gap-1.5 rounded-lg bg-(--primary) px-4 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-(--primary-hover) cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS}`}
     >
       <Plus size={16} />
-      {isAdmin ? "Add advance record" : "Request advance"}
+      {isAdmin
+        ? `Add ${advanceType.toLowerCase()} record`
+        : `Request ${advanceType.toLowerCase()}`}
     </button>
   );
 
@@ -474,14 +503,19 @@ export default function CashAdvances() {
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-700">
-            <DollarSign size={19} />
+            {advanceType === "Cash" ? (
+              <DollarSign size={19} />
+            ) : (
+              <Banknote size={19} />
+            )}
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
-              Cash advances
+              {advanceType === "Cash" ? "Cash advances" : "Salary advances"}
             </h1>
             <p className="mt-0.5 text-xs text-slate-500">
-              Manage employee cash advance records and active repayment plans.
+              Manage employee {advanceType.toLowerCase()} advance records and
+              active repayment plans.
             </p>
           </div>
         </div>
@@ -494,8 +528,38 @@ export default function CashAdvances() {
       {/* Card */}
       <section
         id="cash-advance-card"
-        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        className="scroll-mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col"
       >
+        {/* Type Toggle (Tabs) */}
+        <div className="flex border-b border-slate-200 bg-slate-50/30 px-4 sm:px-5 pt-3 gap-6">
+          <button
+            onClick={() => {
+              setAdvanceType("Cash");
+              setCurrentPage(1);
+            }}
+            className={`pb-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+              advanceType === "Cash"
+                ? "border-(--primary) text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Cash Advances
+          </button>
+          <button
+            onClick={() => {
+              setAdvanceType("Salary");
+              setCurrentPage(1);
+            }}
+            className={`pb-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+              advanceType === "Salary"
+                ? "border-(--primary) text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Salary Advances
+          </button>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-slate-200 bg-slate-50/50 p-4 sm:px-5">
           {isAdmin && employees.length > 0 && (
@@ -563,7 +627,7 @@ export default function CashAdvances() {
         ) : loadError ? (
           <EmptyState
             icon={<AlertCircle size={20} />}
-            title="Couldn't load cash advances"
+            title="Couldn't load advances"
             text="Check your connection and try again."
             action={
               <button
@@ -580,14 +644,14 @@ export default function CashAdvances() {
             icon={<CalendarX2 size={20} />}
             title={
               statusFilter === "All"
-                ? "No cash advances yet"
-                : `No ${statusLabel(statusFilter).toLowerCase()} cash advances`
+                ? `No ${advanceType.toLowerCase()} advances yet`
+                : `No ${statusLabel(statusFilter).toLowerCase()} ${advanceType.toLowerCase()} advances`
             }
             text={
               statusFilter === "All"
                 ? isAdmin
-                  ? "Cash advances you add or that employees request will show up here."
-                  : "When you request a cash advance, you can track its approval here."
+                  ? `${advanceType} advances you add or that employees request will show up here.`
+                  : `When you request a ${advanceType.toLowerCase()} advance, you can track its approval here.`
                 : "Nothing matches this status. Try another one."
             }
             action={
@@ -596,7 +660,7 @@ export default function CashAdvances() {
                   onClick={() => setStatusFilter("All")}
                   className={`inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer ${FOCUS}`}
                 >
-                  Show all cash advances
+                  Show all {advanceType.toLowerCase()} advances
                 </button>
               ) : (
                 fileButton
@@ -604,101 +668,147 @@ export default function CashAdvances() {
             }
           />
         ) : (
-          <>
-            <div
-              className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
-            >
-              {showEmployeeCol && <span>Employee</span>}
-              <span>Amount</span>
-              <span>Balance</span>
-              <span>Plan</span>
-              <span>Status</span>
-              {showActions && <span className="sr-only">Actions</span>}
-            </div>
+          <div className="overflow-x-auto w-full">
+            {/* CHANGED: md:min-w-225 ensures desktop grid fits perfectly without squishing, while mobile fits the screen naturally */}
+            <div className="md:min-w-225 flex flex-col w-full">
+              {/* Desktop Table Header */}
+              <div
+                className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${grid}`}
+              >
+                {showEmployeeCol && <span>Employee</span>}
+                <span>Amount</span>
+                <span>Balance</span>
+                <span>Plan</span>
+                <span>Status</span>
+                {showActions && <span className="sr-only">Actions</span>}
+              </div>
 
-            <ul className="divide-y divide-slate-100">
-              {paginatedAdvances.map((adv) => {
-                const isPending = adv.status === "Pending";
-                return (
-                  <li
-                    key={adv.id}
-                    className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 ${ROW_BASE} ${grid}`}
-                  >
-                    {isPending && (
-                      <span
-                        aria-hidden
-                        className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
-                      />
-                    )}
-
-                    {showEmployeeCol && (
-                      <div className="w-full min-w-0 md:w-auto">
-                        <PersonCell name={getEmployeeName(adv)} />
-                      </div>
-                    )}
-
-                    <span className="text-sm font-semibold tabular-nums text-slate-900 font-mono">
-                      PHP {formatCurrency(adv.cashAdvanceAmount)}
-                    </span>
-
-                    <span className="text-sm font-semibold tabular-nums text-slate-700 font-mono">
-                      PHP{" "}
-                      {formatCurrency(
-                        adv.remainingBalance ?? adv.cashAdvanceAmount,
+              <ul className="divide-y divide-slate-100">
+                {paginatedAdvances.map((adv) => {
+                  const isPending = adv.status === "Pending";
+                  return (
+                    <li
+                      key={adv.id}
+                      className={`relative px-5 py-3 transition-colors hover:bg-slate-50/70 flex flex-col gap-3 md:grid md:items-center md:gap-x-4 md:gap-y-0 ${ROW_BASE} ${grid}`}
+                    >
+                      {isPending && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-0 left-0 w-0.5 bg-amber-400"
+                        />
                       )}
-                    </span>
 
-                    <span className="text-xs font-medium text-slate-600">
-                      {adv.deductionType}
-                    </span>
-
-                    <StatusBadge status={adv.status} />
-
-                    {showActions && (
-                      <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
-                        {isAdmin && isPending && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(adv.id)}
-                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
-                            >
-                              <Check size={14} />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleDecline(adv.id)}
-                              className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
-                            >
-                              <X size={14} />
-                              Decline
-                            </button>
-                          </>
+                      {/* Mobile Row 1: Employee & Status */}
+                      <div className="flex items-center justify-between w-full md:contents">
+                        {showEmployeeCol ? (
+                          <div className="w-full min-w-0">
+                            <PersonCell name={getEmployeeName(adv)} />
+                          </div>
+                        ) : (
+                          <div className="md:hidden" />
                         )}
-                        {!isAdmin && isPending && (
-                          <button
-                            onClick={() => handleCancel(adv.id)}
-                            className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
-                          >
-                            <Ban size={13} />
-                            Cancel
-                          </button>
-                        )}
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDelete(adv.id)}
-                            aria-label="Delete cash advance record"
-                            className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+
+                        <div className="md:hidden">
+                          <StatusBadge status={adv.status} />
+                        </div>
+                      </div>
+
+                      {/* Mobile Row 2: Amount & Balance */}
+                      <div className="flex items-center justify-between w-full md:contents">
+                        <div className="flex flex-col md:hidden text-xs text-slate-500">
+                          <span>Amount</span>
+                          <span className="text-sm font-semibold tabular-nums text-slate-900 font-mono">
+                            PHP {formatCurrency(adv.cashAdvanceAmount)}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col md:hidden text-xs text-slate-500 items-end md:items-start">
+                          <span>Balance</span>
+                          <span className="text-sm font-semibold tabular-nums text-slate-700 font-mono">
+                            PHP{" "}
+                            {formatCurrency(
+                              adv.remainingBalance ?? adv.cashAdvanceAmount,
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Desktop Values */}
+                        <span className="hidden md:block text-sm font-semibold tabular-nums text-slate-900 font-mono">
+                          PHP {formatCurrency(adv.cashAdvanceAmount)}
+                        </span>
+
+                        <span className="hidden md:block text-sm font-semibold tabular-nums text-slate-700 font-mono">
+                          PHP{" "}
+                          {formatCurrency(
+                            adv.remainingBalance ?? adv.cashAdvanceAmount,
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Mobile Row 3: Plan & Actions */}
+                      <div className="flex items-end justify-between w-full md:contents mt-1 md:mt-0">
+                        <div className="flex flex-col md:hidden text-xs text-slate-500">
+                          <span>Plan</span>
+                          <span className="text-xs font-medium text-slate-600">
+                            {adv.deductionType}
+                          </span>
+                        </div>
+
+                        <span className="hidden md:block text-xs font-medium text-slate-600">
+                          {adv.deductionType}
+                        </span>
+
+                        <div className="hidden md:block">
+                          <StatusBadge status={adv.status} />
+                        </div>
+
+                        {showActions && (
+                          <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
+                            {isAdmin && isPending && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(adv.id)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
+                                >
+                                  <Check size={14} />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleDecline(adv.id)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
+                                >
+                                  <X size={14} />
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {!isAdmin && isPending && (
+                              <button
+                                onClick={() => handleCancel(adv.id)}
+                                className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                              >
+                                <Ban size={13} />
+                                Cancel
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDelete(adv.id)}
+                                aria-label="Delete advance record"
+                                className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         )}
 
         {!loading && (
@@ -716,6 +826,7 @@ export default function CashAdvances() {
         employees={employees}
         formData={formData}
         isSubmitting={isSubmitting}
+        advanceType={advanceType}
         onClose={() => setShowModal(false)}
         onSubmit={handleCreate}
         onChange={(field, val) =>
