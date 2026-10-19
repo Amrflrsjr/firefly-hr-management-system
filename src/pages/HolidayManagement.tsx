@@ -350,7 +350,7 @@ export default function HolidayManagement() {
           />
         ) : (
           <div className="overflow-x-auto w-full">
-            <div className="md:min-w-[750px] flex flex-col w-full">
+            <div className="md:min-w-187.5 flex flex-col w-full">
               <div
                 className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${HOLIDAY_GRID}`}
               >

@@ -396,7 +396,7 @@ export default function EmployeeManagement() {
           />
         ) : (
           <div className="overflow-x-auto w-full">
-            <div className="md:min-w-[900px] flex flex-col w-full">
+            <div className="md:min-w-225 flex flex-col w-full">
               <div
                 className={`hidden border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500 md:grid md:gap-x-4 ${EMPLOYEE_GRID}`}
               >
