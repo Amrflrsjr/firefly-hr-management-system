@@ -159,7 +159,7 @@ export function estimatePayroll(
 
   const lateDeduction = (p.lateHours / 8.0) * actualDailyRate;
   const undertimeDeduction = (p.undertimeHours / 8.0) * actualDailyRate;
-  const absentDeduction = p.absentDays * actualDailyRate;
+  const absentDeduction = 0;
 
   let sss = 0;
   let philHealth = 0;

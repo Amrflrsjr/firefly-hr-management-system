@@ -17,6 +17,7 @@ import {
   Timer,
   TrendingUp,
   Wallet,
+  Clock,
 } from "lucide-react";
 import Toast from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
@@ -148,6 +149,61 @@ const getGreeting = () => {
   return "Good evening";
 };
 
+// --- NEW HELPER FUNCTION ---
+const calculateExpectedTimeOut = (
+  timeInStr: string | null,
+  officeType: string = "Production",
+): string | null => {
+  if (!timeInStr) return null;
+
+  // Extract time if it's an ISO string, otherwise assume it's already "HH:mm"
+  let hours: number;
+  let minutes: number;
+
+  if (timeInStr.includes("T") || timeInStr.includes("-")) {
+    const date = new Date(timeInStr);
+    if (isNaN(date.getTime())) return null;
+    // Convert to PHT (UTC+8) for calculation
+    const phtDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+    hours = phtDate.getUTCHours();
+    minutes = phtDate.getUTCMinutes();
+  } else {
+    const parts = timeInStr.split(":");
+    if (parts.length < 2) return null;
+    hours = parseInt(parts[0], 10);
+    // Handle PM times if already formatted as 01:30 PM
+    if (timeInStr.toUpperCase().includes("PM") && hours < 12) hours += 12;
+    minutes = parseInt(parts[1].replace(/\D/g, ""), 10);
+  }
+
+  if (officeType === "Admin") {
+    return "06:00 PM";
+  }
+
+  if (officeType === "Production") {
+    const expectedOutHours = hours + 9;
+
+    // If they clocked in at 10:00 AM or later, cap at 7:00 PM (19:00)
+    if (hours >= 10) {
+      return "07:00 PM";
+    }
+
+    // If their 9 hours pushes past 7:00 PM
+    if (expectedOutHours > 19 || (expectedOutHours === 19 && minutes > 0)) {
+      return "07:00 PM";
+    }
+
+    const ampm = expectedOutHours >= 12 ? "PM" : "AM";
+    const formattedHour =
+      expectedOutHours % 12 === 0 ? 12 : expectedOutHours % 12;
+    const formattedMinute = String(minutes).padStart(2, "0");
+
+    return `${String(formattedHour).padStart(2, "0")}:${formattedMinute} ${ampm}`;
+  }
+
+  return null;
+};
+
 function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
     <div className={`animate-pulse rounded-xl bg-slate-200/70 ${className}`} />
@@ -175,7 +231,6 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metricsError, setMetricsError] = useState(false);
 
-  // Dynamic cutoff & holiday states[cite: 16]
   const [payrollCutoff, setPayrollCutoff] = useState<Date>(getPayrollCutoff());
   const [daysUntilCutoff, setDaysUntilCutoff] = useState<number>(
     getDaysUntil(getPayrollCutoff()),
@@ -441,6 +496,13 @@ export default function Dashboard() {
     !attendanceReady ||
     !metrics!.hasClockedInToday ||
     metrics!.hasClockedOutToday;
+
+  // Get expected time out for today's shift (assuming Production as fallback)
+  const employeeOfficeType = localStorage.getItem("officeType") || "Production";
+  const expectedTimeOut = calculateExpectedTimeOut(
+    metrics?.lastTimeIn || null,
+    employeeOfficeType,
+  );
 
   return (
     <div className="min-h-full w-full bg-slate-50/50">
@@ -746,26 +808,35 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                            <LogIn size={16} />
+                      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                              <LogIn size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-semibold text-slate-400 uppercase">
+                                Time IN
+                              </p>
+                              <p className="text-sm font-bold text-slate-900">
+                                {renderFormattedTime(metrics!.lastTimeIn)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[11px] font-semibold text-slate-400 uppercase">
-                              Time IN
-                            </p>
-                            <p className="text-sm font-bold text-slate-900">
-                              {renderFormattedTime(metrics!.lastTimeIn)}
-                            </p>
-                          </div>
+                          {metrics!.hasClockedInToday && (
+                            <CheckCircle2
+                              size={16}
+                              className="text-emerald-600"
+                            />
+                          )}
                         </div>
 
-                        {metrics!.hasClockedInToday && (
-                          <CheckCircle2
-                            size={16}
-                            className="text-emerald-600"
-                          />
+                        {/* EXPECTED TIME OUT BADGE */}
+                        {metrics!.hasClockedInToday && expectedTimeOut && (
+                          <div className="mt-1 flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 border border-amber-200/60 w-fit">
+                            <Clock size={12} className="text-amber-700" />
+                            Expected Out: {expectedTimeOut}
+                          </div>
                         )}
                       </div>
 
