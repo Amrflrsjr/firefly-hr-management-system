@@ -97,18 +97,24 @@ const daysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
 export function getPeriodRange(type: PayPeriodType, ref = new Date()) {
   const y = ref.getFullYear();
   const m = ref.getMonth();
+
   if (type === "15th") {
     const prev = new Date(y, m - 1, 1);
-    const startDay = Math.min(
-      29,
-      daysInMonth(prev.getFullYear(), prev.getMonth()),
-    );
+    // Calculate the 2nd-to-last day of the previous month
+    const lastDayPrevMonth = daysInMonth(prev.getFullYear(), prev.getMonth());
+    const startDay = lastDayPrevMonth - 1;
+
     return {
       start: new Date(prev.getFullYear(), prev.getMonth(), startDay),
       end: new Date(y, m, 13),
     };
   }
-  return { start: new Date(y, m, 14), end: new Date(y, m, 28) };
+
+  // Calculate the 2nd-to-last day of the current month
+  const lastDayOfMonth = daysInMonth(y, m);
+  const endDay = lastDayOfMonth - 2;
+
+  return { start: new Date(y, m, 14), end: new Date(y, m, endDay) };
 }
 
 export function formatPeriodRange(type: PayPeriodType, ref = new Date()) {
