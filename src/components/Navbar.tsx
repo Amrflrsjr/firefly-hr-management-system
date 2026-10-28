@@ -14,6 +14,7 @@ import {
   X,
   ChevronRight,
   User,
+  Gift,
 } from "lucide-react";
 import logo from "../assets/Firefly Logo - No BG.png";
 import api from "../services/api";
@@ -145,7 +146,10 @@ export default function Navbar() {
           notificationType: "Advance",
         },
         ...(role === "Admin"
-          ? [{ to: "/payroll", label: "Payroll", icon: DollarSign }]
+          ? [
+              { to: "/payroll", label: "Payroll", icon: DollarSign },
+              { to: "/13th-month", label: "13th Month", icon: Gift }, // <-- ADDED HERE
+            ]
           : []),
       ],
     },

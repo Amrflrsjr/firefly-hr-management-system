@@ -17,6 +17,7 @@ import Timesheet from "./pages/Timesheet";
 import CashAdvances from "./pages/CashAdvances";
 import HolidayManagement from "./pages/HolidayManagement";
 import Profile from "./pages/Profile";
+import ThirteenthMonth from "./pages/ThirteenthMonth";
 
 // Dynamic Authentication & Role Guard
 function ProtectedRoute({ allowedRoles }: { allowedRoles?: string[] }) {
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/employees" element={<EmployeeManagement />} />
               <Route path="/holidays" element={<HolidayManagement />} />
               <Route path="/payroll" element={<PayrollGenerator />} />
+              <Route path="/13th-month" element={<ThirteenthMonth />} />
               <Route path="/cash-advances" element={<CashAdvances />} />
             </Route>
           </Route>
