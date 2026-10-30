@@ -55,16 +55,28 @@ const getPayPeriodRange = (payPeriod: string, payPeriodEndStr: string) => {
 
   if (payPeriod.includes("15th")) {
     const prevMonth = new Date(year, month - 1, 1);
-    const lastDayPrevMonth = new Date(year, month, 0).getDate();
+    // Dynamically get the last day of the previous month
+    const lastDayPrevMonth = new Date(
+      prevMonth.getFullYear(),
+      prevMonth.getMonth() + 1,
+      0,
+    ).getDate();
+    // Start is the 2nd-to-last day of the previous month
+    const startDay = lastDayPrevMonth - 1;
+
     startDate = new Date(
       prevMonth.getFullYear(),
       prevMonth.getMonth(),
-      Math.min(30, lastDayPrevMonth),
+      startDay,
     );
     finalEndDate = new Date(year, month, 13);
   } else {
+    // End of month cutoff: 14th to the 2nd-to-last day of the current month
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const endDay = lastDayOfMonth - 2;
+
     startDate = new Date(year, month, 14);
-    finalEndDate = new Date(year, month, 28);
+    finalEndDate = new Date(year, month, endDay);
   }
 
   const format = (d: Date) =>

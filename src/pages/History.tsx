@@ -144,17 +144,40 @@ export default function History() {
     }
   };
 
-  // Group current page history items by Month and Year
+  // Group current page history items by the Month of the CUTOFF, not when it was generated
   const groupedHistoryByMonth = useMemo(() => {
     const groups: Record<string, PaySlipData[]> = {};
+
     history.forEach((item) => {
-      const date = new Date(item.payPeriodEnd);
-      const monthYear = isNaN(date.getTime())
-        ? "General History"
-        : date.toLocaleDateString("en-US", {
+      // Extract the month from the payPeriod string (e.g., "End of Month · Oct 14 – Oct 29, 2026")
+      // Fallback to PayPeriodEnd if the string format is unexpected
+      let monthYear = "General History";
+
+      if (item.payPeriod && item.payPeriod.includes(",")) {
+        const parts = item.payPeriod.split("–");
+        if (parts.length > 1) {
+          // Grabs " Oct 29, 2026" and formats it
+          const endPart = parts[1].trim();
+          const date = new Date(endPart);
+          if (!isNaN(date.getTime())) {
+            monthYear = date.toLocaleDateString("en-US", {
+              month: "long",
+              year: "numeric",
+            });
+          }
+        }
+      }
+
+      // Fallback to the generation date if we couldn't parse the cutoff string
+      if (monthYear === "General History" && item.payPeriodEnd) {
+        const date = new Date(item.payPeriodEnd);
+        if (!isNaN(date.getTime())) {
+          monthYear = date.toLocaleDateString("en-US", {
             month: "long",
             year: "numeric",
           });
+        }
+      }
 
       if (!groups[monthYear]) {
         groups[monthYear] = [];
@@ -303,14 +326,21 @@ export default function History() {
                             className="p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
                           >
                             <div>
-                              <h3 className="font-bold text-slate-900 text-xs">
+                              <h3 className="font-bold text-slate-900 text-sm">
                                 {item.payPeriod}
                               </h3>
                               <p className="text-[11px] text-slate-400 mt-0.5">
-                                Cutoff End Date:{" "}
-                                {new Date(
-                                  item.payPeriodEnd,
-                                ).toLocaleDateString()}
+                                Generated on:{" "}
+                                {new Date(item.payPeriodEnd).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                    hour: "numeric",
+                                    minute: "numeric",
+                                  },
+                                )}
                               </p>
                             </div>
 
