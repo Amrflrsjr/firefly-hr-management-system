@@ -47,23 +47,21 @@ export default function Navbar() {
   const employeeId = localStorage.getItem("employeeId");
 
   useEffect(() => {
-    // If no employeeId is present in storage, skip polling to prevent failed requests
     if (!employeeId) return;
 
     const fetchCounts = async () => {
       try {
-        const [leaveRes, otRes, advRes, payrollRes] = await Promise.all([
-          api.get(`/Notifications/unread-count/${employeeId}?type=Leave`),
-          api.get(`/Notifications/unread-count/${employeeId}?type=Overtime`),
-          api.get(`/Notifications/unread-count/${employeeId}?type=Advance`),
-          api.get(`/Notifications/unread-count/${employeeId}?type=Payroll`),
-        ]);
+        // CHANGED: Now making 1 single request instead of 4 separate requests
+        const response = await api.get(
+          `/Notifications/unread-summary/${employeeId}`,
+        );
 
+        // Update all badges at once
         setBadgeCounts({
-          Leave: leaveRes.data || 0,
-          Overtime: otRes.data || 0,
-          Advance: advRes.data || 0,
-          Payroll: payrollRes.data || 0,
+          Leave: response.data.Leave || 0,
+          Overtime: response.data.Overtime || 0,
+          Advance: response.data.Advance || 0,
+          Payroll: response.data.Payroll || 0,
         });
       } catch {
         // Fail silently if endpoint errors out
@@ -71,9 +69,10 @@ export default function Navbar() {
     };
 
     fetchCounts();
-    const interval = setInterval(fetchCounts, 10000);
-    return () => clearInterval(interval);
-  }, [employeeId]);
+
+    // REMOVED: setInterval(fetchCounts, 10000);
+    // CHANGED: Added location.pathname so it fetches when navigating pages, but NOT on a timer.
+  }, [employeeId, location.pathname]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -89,6 +88,8 @@ export default function Navbar() {
     e.preventDefault();
     if (isMobile) setIsOpen(false);
 
+    // We update the UI instantly, and the useEffect will fetch fresh data
+    // when location.pathname changes right after this click.
     if (employeeId && notifType && badgeCounts[notifType] > 0) {
       try {
         await api.put(
@@ -130,7 +131,7 @@ export default function Navbar() {
           to: "/history",
           label: "History",
           icon: HistoryIcon,
-          showBadge: role !== "Admin", // Employees track payroll history; admins track via Payroll
+          showBadge: role !== "Admin",
           notificationType: "Payroll",
         },
       ],
@@ -148,7 +149,7 @@ export default function Navbar() {
         ...(role === "Admin"
           ? [
               { to: "/payroll", label: "Payroll", icon: DollarSign },
-              { to: "/13th-month", label: "13th Month", icon: Gift }, // <-- ADDED HERE
+              { to: "/13th-month", label: "13th Month", icon: Gift },
             ]
           : []),
       ],
