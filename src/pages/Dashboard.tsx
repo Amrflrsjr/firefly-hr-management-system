@@ -22,6 +22,7 @@ import {
 import Toast from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
 import AdminDashboard from "../components/AdminDashboard";
+import type { Employee } from "../types/employee";
 
 interface DashboardMetrics {
   regularHours: number;
@@ -225,6 +226,7 @@ export default function Dashboard() {
     pendingLeaves: 0,
     totalPayrollThisMonth: 0,
   });
+  const [adminEmployees, setAdminEmployees] = useState<Employee[]>([]);
   const [payrollTrends, setPayrollTrends] = useState<PayrollTrendItem[]>([]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(!isAdmin);
   const [isLoadingAdminStats, setIsLoadingAdminStats] = useState(isAdmin);
@@ -269,8 +271,12 @@ export default function Dashboard() {
             ]);
 
           const nonAdmins = (empRes.data || []).filter(
-            (e: { isAdmin?: boolean }) => !e.isAdmin,
+            (e: Employee) => !e.isAdmin,
           );
+
+          // ADD THIS LINE:
+          setAdminEmployees(nonAdmins);
+
           const pendingAtt = (reqRes.data || []).filter(
             (r: { status?: string }) => r.status === "Pending",
           ).length;
@@ -334,8 +340,12 @@ export default function Dashboard() {
           if (!isMounted) return;
 
           const nonAdmins = (empRes.data || []).filter(
-            (e: { isAdmin?: boolean }) => !e.isAdmin,
+            (e: Employee) => !e.isAdmin,
           );
+
+          // ADD THIS LINE:
+          setAdminEmployees(nonAdmins);
+
           const pendingAtt = (reqRes.data || []).filter(
             (r: { status?: string }) => r.status === "Pending",
           ).length;
@@ -562,6 +572,7 @@ export default function Dashboard() {
             cutoffDate={payrollCutoff}
             onRefresh={() => refreshDashboardData(true)}
             navigate={navigate}
+            employees={adminEmployees} // <-- ADD THIS
           />
         )}
 

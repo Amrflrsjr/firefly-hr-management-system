@@ -4,20 +4,21 @@ import {
   Plus,
   Trash2,
   DollarSign,
-  Check,
-  X,
-  Ban,
   UserCheck,
   ChevronDown,
   CalendarX2,
   RotateCw,
   AlertCircle,
   Banknote,
+  CreditCard,
+  History,
 } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal";
 import Toast from "../components/Toast";
 import PaginationBar from "../components/timesheet/PaginationBar";
 import CashAdvanceModal from "../components/cashAdvances/CashAdvanceModal";
+import PaymentModal from "../components/cashAdvances/PaymentModal";
+import PaymentHistoryModal from "../components/cashAdvances/PaymentHistoryModal";
 import { FOCUS, ROW_BASE, statusLabel } from "../utils/uiConstants";
 import {
   PersonCell,
@@ -45,6 +46,12 @@ interface CashAdvance {
   date: string;
   status: string;
   type?: string;
+  payments?: {
+    id: number;
+    amount: number;
+    paymentDate: string;
+    remarks?: string;
+  }[];
 }
 
 type StatusFilter =
@@ -68,12 +75,12 @@ const STATUS_FILTERS: StatusFilter[] = [
 ];
 
 const CASH_ADVANCE_GRID: Record<string, string> = {
-  "1-admin": "md:grid-cols-[minmax(0,1.2fr)_130px_150px_130px_120px_216px]",
-  "1-emp": "md:grid-cols-[minmax(0,1.2fr)_130px_150px_130px_120px_96px]",
-  "1-none": "md:grid-cols-[minmax(0,1.2fr)_130px_150px_130px_120px]",
-  "0-admin": "md:grid-cols-[130px_150px_130px_120px_216px]",
-  "0-emp": "md:grid-cols-[130px_150px_130px_120px_96px]",
-  "0-none": "md:grid-cols-[130px_150px_130px_120px]",
+  "1-admin": "md:grid-cols-[minmax(0,1.2fr)_120px_140px_120px_110px_220px]",
+  "1-emp": "md:grid-cols-[minmax(0,1.2fr)_120px_140px_120px_110px_96px]",
+  "1-none": "md:grid-cols-[minmax(0,1.2fr)_120px_140px_120px_110px]",
+  "0-admin": "md:grid-cols-[120px_140px_120px_110px_220px]",
+  "0-emp": "md:grid-cols-[120px_140px_120px_110px_96px]",
+  "0-none": "md:grid-cols-[120px_140px_120px_110px]",
 };
 
 const formatCurrency = (val?: number) => {
@@ -94,7 +101,12 @@ export default function CashAdvances() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [showModal, setShowModal] = useState(false);
 
+  // --- Modal States ---
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
   const [advanceType, setAdvanceType] = useState<AdvanceType>("Cash");
+  const [isDeletingPayment, setIsDeletingPayment] = useState(false);
 
   const role = localStorage.getItem("role") || "Employee";
   const loggedInEmployeeId = Number(localStorage.getItem("employeeId")) || 1;
@@ -108,6 +120,29 @@ export default function CashAdvances() {
     employeeId: "",
     cashAdvanceAmount: 1000,
     deductionType: "Monthly",
+  });
+
+  // --- Payment State ---
+  const [paymentData, setPaymentData] = useState({
+    id: 0,
+    amount: 0,
+    remarks: "",
+    remainingBalance: 0,
+  });
+
+  // --- History State ---
+  const [historyData, setHistoryData] = useState<{
+    payments: NonNullable<CashAdvance["payments"]>;
+    advanceAmount: number;
+    remainingBalance: number;
+    employeeName: string;
+    advanceType: string;
+  }>({
+    payments: [],
+    advanceAmount: 0,
+    remainingBalance: 0,
+    employeeName: "",
+    advanceType: "",
   });
 
   const [modalConfig, setModalConfig] = useState<{
@@ -285,6 +320,62 @@ export default function CashAdvances() {
       showToast(errorMsg, "error");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await api.post(`/CashAdvances/${paymentData.id}/pay`, {
+        amount: paymentData.amount,
+        remarks: paymentData.remarks,
+      });
+      showToast(
+        `Payment of ₱${paymentData.amount.toLocaleString()} recorded successfully!`,
+      );
+      setShowPaymentModal(false);
+      reload();
+    } catch (err: unknown) {
+      const errorMsg =
+        (err as { response?: { data?: string } })?.response?.data ||
+        "Failed to record payment.";
+      showToast(errorMsg, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: number) => {
+    setIsDeletingPayment(true);
+    try {
+      await api.delete(`/CashAdvances/payments/${paymentId}`);
+      showToast("Payment deleted successfully. Balance restored.");
+
+      // Update local state instantly so the UI reflects the change without closing the modal
+      setHistoryData((prev) => {
+        const newPayments = prev.payments.filter((p) => p.id !== paymentId);
+        // Find the deleted payment to add its amount back to the balance
+        const deletedPayment = prev.payments.find((p) => p.id === paymentId);
+        const newBalance =
+          prev.remainingBalance + (deletedPayment?.amount || 0);
+
+        return {
+          ...prev,
+          payments: newPayments,
+          remainingBalance: newBalance,
+        };
+      });
+
+      // Also trigger a silent reload in the background so the main table updates
+      reload();
+    } catch (err: unknown) {
+      const errorMsg =
+        (err as { response?: { data?: string } })?.response?.data ||
+        "Failed to delete payment.";
+      showToast(errorMsg, "error");
+    } finally {
+      setIsDeletingPayment(false);
     }
   };
 
@@ -669,7 +760,6 @@ export default function CashAdvances() {
           />
         ) : (
           <div className="overflow-x-auto w-full">
-            {/* CHANGED: md:min-w-225 ensures desktop grid fits perfectly without squishing, while mobile fits the screen naturally */}
             <div className="md:min-w-225 flex flex-col w-full">
               {/* Desktop Table Header */}
               <div
@@ -763,41 +853,87 @@ export default function CashAdvances() {
                         </div>
 
                         {showActions && (
-                          <div className="flex w-full items-center justify-end gap-1.5 md:w-auto">
+                          <div className="flex w-full items-center justify-end gap-1 md:w-auto">
                             {isAdmin && isPending && (
                               <>
                                 <button
                                   onClick={() => handleApprove(adv.id)}
-                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer ${FOCUS}`}
+                                  className={`inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-xs font-medium text-white transition-colors hover:bg-slate-800 cursor-pointer ${FOCUS}`}
                                 >
-                                  <Check size={14} />
                                   Approve
                                 </button>
                                 <button
                                   onClick={() => handleDecline(adv.id)}
-                                  className={`inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200/70 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 cursor-pointer ${FOCUS}`}
+                                  className={`inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
                                 >
-                                  <X size={14} />
                                   Decline
                                 </button>
                               </>
                             )}
+
+                            {/* --- PAYMENT BUTTON --- */}
+                            {isAdmin &&
+                              adv.status === "Active" &&
+                              (adv.remainingBalance ?? adv.cashAdvanceAmount) >
+                                0 && (
+                                <button
+                                  onClick={() => {
+                                    setPaymentData({
+                                      id: adv.id,
+                                      amount:
+                                        adv.remainingBalance ??
+                                        adv.cashAdvanceAmount,
+                                      remarks: "",
+                                      remainingBalance:
+                                        adv.remainingBalance ??
+                                        adv.cashAdvanceAmount,
+                                    });
+                                    setShowPaymentModal(true);
+                                  }}
+                                  className={`inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 cursor-pointer ${FOCUS}`}
+                                >
+                                  <CreditCard size={14} />
+                                  Pay
+                                </button>
+                              )}
+
+                            {/* --- HISTORY BUTTON --- */}
+                            <button
+                              onClick={() => {
+                                setHistoryData({
+                                  payments: adv.payments || [],
+                                  advanceAmount: adv.cashAdvanceAmount,
+                                  remainingBalance:
+                                    adv.remainingBalance ??
+                                    adv.cashAdvanceAmount,
+                                  employeeName: getEmployeeName(adv),
+                                  advanceType: adv.type || "Cash",
+                                });
+                                setShowHistoryModal(true);
+                              }}
+                              className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 cursor-pointer ${FOCUS}`}
+                              title="View Payment History"
+                            >
+                              <History size={14} />
+                              History
+                            </button>
+
                             {!isAdmin && isPending && (
                               <button
                                 onClick={() => handleCancel(adv.id)}
-                                className={`inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
+                                className={`inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer ${FOCUS}`}
                               >
-                                <Ban size={13} />
                                 Cancel
                               </button>
                             )}
+
                             {isAdmin && (
                               <button
                                 onClick={() => handleDelete(adv.id)}
                                 aria-label="Delete advance record"
-                                className={`rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
+                                className={`ml-1 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 cursor-pointer ${FOCUS}`}
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={15} />
                               </button>
                             )}
                           </div>
@@ -832,6 +968,31 @@ export default function CashAdvances() {
         onChange={(field, val) =>
           setFormData((prev) => ({ ...prev, [field]: val }))
         }
+      />
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        isSubmitting={isSubmitting}
+        remainingBalance={paymentData.remainingBalance}
+        amount={paymentData.amount}
+        remarks={paymentData.remarks}
+        onClose={() => setShowPaymentModal(false)}
+        onSubmit={handleRecordPayment}
+        onChange={(field, val) =>
+          setPaymentData((prev) => ({ ...prev, [field]: val }))
+        }
+      />
+
+      <PaymentHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        payments={historyData.payments}
+        advanceAmount={historyData.advanceAmount}
+        remainingBalance={historyData.remainingBalance}
+        employeeName={historyData.employeeName}
+        advanceType={historyData.advanceType}
+        isDeleting={isDeletingPayment}
+        onDeletePayment={handleDeletePayment}
       />
 
       <ConfirmModal
